@@ -13,5 +13,14 @@
     "test:e2e": "pnpm --filter @poc/e2e test",
     "ci": "pnpm typecheck && pnpm test:unit && pnpm build"
   },
-  "engines": { "node": ">=22.18.0" }
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@swc/core",
+      "esbuild",
+      "core-js"
+    ]
+  }
 }

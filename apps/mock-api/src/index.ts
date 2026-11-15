@@ -6,8 +6,9 @@ import { restRouter } from "./rest.js";
 import { sessionRouter } from "./session.js";
 
 const app = express();
+const ports = [8080, 8081, 8082, 8090, 8091, 8092, 5001, 5002];
 const allowedOrigins = new Set([
-  ...[8080, 8081, 8082, 5001, 5002].map((port) => `http://localhost:${port}`),
+  ...ports.flatMap((port) => [`http://localhost:${port}`, `http://127.0.0.1:${port}`]),
 ]);
 
 app.use((req, res, next) => {
@@ -32,7 +33,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/__controls", controlsRouter());
-app.use("/api/session", sessionRouter);
+app.use("/api/session", applyRequestControls, sessionRouter);
 
 function enforceAccountScope(req: express.Request, res: express.Response, next: express.NextFunction): void {
   const subjectId = req.get("x-poc-session");

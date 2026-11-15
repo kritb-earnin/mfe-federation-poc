@@ -1,7 +1,10 @@
+import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoot } from "react-dom/client";
 import type { MountCapabilities, MountHandle, RemoteBlockReason, RemoteMount, SessionApi } from "@poc/platform-contracts";
 import { App, type LocalFeatureState } from "./App.js";
+
+void React;
 
 function resolveSession(capabilities: MountCapabilities): SessionApi {
   const session = capabilities.session ?? capabilities.resolveSession?.();
@@ -38,10 +41,11 @@ export const mount: RemoteMount = (element, capabilities): MountHandle => {
 
   const lifecycle = {
     async prepareTransition(_ctx: { signal: AbortSignal }): Promise<void> {
-      await queryClient.cancelQueries();
+      void queryClient.cancelQueries();
     },
     async resetIdentityState(_ctx: { signal: AbortSignal }): Promise<void> {
       if (capabilities.forceCleanupFail) throw new Error("forced cleanup failure");
+      void queryClient.cancelQueries();
       queryClient.clear();
       localFeature = { draftNote: "" };
     },

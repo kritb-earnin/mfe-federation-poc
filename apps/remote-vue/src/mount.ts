@@ -9,35 +9,56 @@ function resolveSession(capabilities: MountCapabilities): SessionApi {
   return session;
 }
 
+function stopClient(client: { stop?: () => void }): void {
+  // Apollo stop() can leave observers hanging; never block transitions on it.
+  try {
+    client.stop?.();
+  } catch {
+    // ignore
+  }
+}
+
 export const mount: RemoteMount = (element, capabilities): MountHandle => {
   const session = resolveSession(capabilities);
   const snapshot = () => session.getSnapshot();
-  const makeClient = () => createApolloClient(() => {
-    const current = snapshot();
-    return {
-      "x-poc-session": current.subjectId ?? "",
-      "x-poc-account": current.accountId ?? "",
-    };
-  });
-  let client = makeClient();
+  const makeClient = () =>
+    createApolloClient(() => {
+      const current = snapshot();
+      return {
+        "x-poc-session": current.subjectId ?? "",
+        "x-poc-account": current.accountId ?? "",
+      };
+    });
+  const client = shallowRef(makeClient());
   const blocked = shallowRef<RemoteBlockReason | null>(null);
+  const draftNote = shallowRef("");
   let disposed = false;
   const app = createApp({
-    setup: () => () => h(App, { session, client, blocked: blocked.value }),
+    setup: () => () =>
+      h(App, {
+        session,
+        client: client.value,
+        blocked: blocked.value,
+        draftNote: draftNote.value,
+        "onUpdate:draftNote": (value: string) => {
+          draftNote.value = value;
+        },
+      }),
   });
   app.mount(element);
 
   const lifecycle = {
     async prepareTransition(ctx: { signal: AbortSignal }): Promise<void> {
       ctx.signal.throwIfAborted();
-      await client.stop();
+      stopClient(client.value);
     },
     async resetIdentityState(ctx: { signal: AbortSignal }): Promise<void> {
       ctx.signal.throwIfAborted();
       if (capabilities.forceCleanupFail) throw new Error("forced cleanup failure");
-      const oldClient = client;
-      client = makeClient();
-      await oldClient.stop();
+      const oldClient = client.value;
+      draftNote.value = "";
+      client.value = makeClient();
+      stopClient(oldClient);
     },
     async resume(ctx: { signal: AbortSignal }): Promise<void> {
       ctx.signal.throwIfAborted();
@@ -45,12 +66,13 @@ export const mount: RemoteMount = (element, capabilities): MountHandle => {
     },
     block(reason: RemoteBlockReason): void {
       blocked.value = reason;
-      void client.stop();
+      draftNote.value = "";
+      stopClient(client.value);
     },
     dispose(): void {
       if (disposed) return;
       disposed = true;
-      void client.stop();
+      stopClient(client.value);
       app.unmount();
     },
   };

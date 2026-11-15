@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import React, { type Dispatch, type SetStateAction } from "react";
 import type { RemoteBlockReason, SessionApi } from "@poc/platform-contracts";
 import { useSessionSnapshot } from "./sessionAdapter.js";
 import { useOrders } from "./query.js";
@@ -46,3 +46,6 @@ export function App({ session, blocked, localFeature, setLocalFeature }: AppProp
     </main>
   );
 }
+
+// Keep React referenced for federated shared-scope edge cases.
+void React;
