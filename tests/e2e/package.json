@@ -1,0 +1,1 @@
+{"name":"@poc/e2e","private":true,"version":"0.0.0","scripts":{"test":"playwright test","test:a":"playwright test --project=shell-a","test:smoke":"playwright test --project=shell-bc-smoke"},"devDependencies":{"@playwright/test":"1.65.1","@poc/test-support":"workspace:*","typescript":"5.9.3"}}
