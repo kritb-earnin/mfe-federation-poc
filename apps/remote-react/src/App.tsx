@@ -1,0 +1,41 @@
+import type { Dispatch, SetStateAction } from "react";
+import type { RemoteBlockReason, SessionApi } from "@poc/platform-contracts";
+import { useSessionSnapshot } from "./sessionAdapter.js";
+import { useOrders } from "./query.js";
+
+export type LocalFeatureState = { draftNote: string };
+
+type AppProps = {
+  session: SessionApi;
+  blocked: RemoteBlockReason | null;
+  localFeature: LocalFeatureState;
+  setLocalFeature: Dispatch<SetStateAction<LocalFeatureState>>;
+};
+
+export function App({ session, blocked, localFeature, setLocalFeature }: AppProps) {
+  const snapshot = useSessionSnapshot(session);
+  const ordersQuery = useOrders(session, snapshot.accountId, snapshot.contextRevision);
+
+  return (
+    <main>
+      <h1>Fictional React Orders</h1>
+      {blocked ? <p role="alert">Remote paused: {blocked.message}</p> : null}
+      <p>Session status: {snapshot.status}</p>
+      <p>Account: {snapshot.accountId ?? "none"} (fictional)</p>
+      {snapshot.status !== "authenticated" ? <p>Sign in to view fictional orders.</p> : null}
+      {ordersQuery.isPending && ordersQuery.fetchStatus !== "idle" ? <p>Loading fictional orders…</p> : null}
+      {ordersQuery.isError ? <p role="alert">Could not load orders: {ordersQuery.error.message}</p> : null}
+      {ordersQuery.data ? (
+        <ul>
+          {ordersQuery.data.map((order) => (
+            <li key={order.id}>{order.description} — {order.status}</li>
+          ))}
+        </ul>
+      ) : null}
+      <label>
+        Fictional draft note
+        <textarea value={localFeature.draftNote} onChange={(event) => setLocalFeature({ draftNote: event.target.value })} />
+      </label>
+    </main>
+  );
+}

@@ -26,6 +26,8 @@ export interface MountHandle {
 
 export type MountCapabilities = {
   session?: SessionApi;
+  resolveSession?: () => SessionApi;
+  forceCleanupFail?: boolean;
   /** Optional diagnostics sink from shell */
   onEvent?: (event: { type: string; detail?: unknown }) => void;
 };
