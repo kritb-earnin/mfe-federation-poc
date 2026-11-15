@@ -8,7 +8,7 @@
     "dev:b": "pnpm --filter @poc/shell-federated dev",
     "dev:c": "pnpm --filter @poc/shell-zustand dev",
     "typecheck": "pnpm -r --if-present typecheck",
-    "test:unit": "pnpm -r --if-present test",
+    "test:unit": "pnpm -r --filter '!@poc/e2e' --if-present test",
     "build": "pnpm -r --if-present build",
     "test:e2e": "pnpm --filter @poc/e2e test",
     "ci": "pnpm typecheck && pnpm test:unit && pnpm build"
