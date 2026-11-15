@@ -91,7 +91,9 @@ export function createSessionCoordinator(options: CoordinatorOptions): {
         throw error;
       }
     });
-    await Promise.all(tasks);
+    const results = await Promise.allSettled(tasks);
+    const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failure) throw failure.reason;
   };
 
   const withTransition = async (run: (context: TransitionContext, command: Command) => Promise<SessionSnapshot>) => {
@@ -135,6 +137,7 @@ export function createSessionCoordinator(options: CoordinatorOptions): {
         const resume = remoteLifecycle.then(async () => {
           checkCurrent(command);
           for (const [id, remote] of remotes) {
+            checkCurrent(command);
             if (!blocked.has(id)) await remote.resume(context);
           }
         });

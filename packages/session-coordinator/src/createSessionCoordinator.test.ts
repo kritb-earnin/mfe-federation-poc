@@ -180,4 +180,65 @@ describe("createSessionCoordinator", () => {
     expect(c.api.getSnapshot()).toMatchObject({ status: "error", contextRevision: 1 });
     c.dispose();
   });
+  
+  it("waits for all reset tasks before the next transition prepares remotes", async () => {
+    let finishSlowReset!: () => void;
+    let slowResetStarted!: () => void;
+    const resetStarted = new Promise<void>((resolve) => { slowResetStarted = resolve; });
+    const failed = fakeRemote({
+      resetIdentityState: vi.fn(async () => { throw new Error("cleanup failed"); }),
+    });
+    let resetCalls = 0;
+    const slow = fakeRemote({
+      resetIdentityState: vi.fn(async () => {
+        resetCalls += 1;
+        if (resetCalls === 1) {
+          slowResetStarted();
+          await new Promise<void>((resolve) => { finishSlowReset = resolve; });
+        }
+      }),
+    });
+    const c = createSessionCoordinator({ auth });
+    c.registry.register("failed", failed);
+    c.registry.register("slow", slow);
+
+    const first = c.api.requestLogin();
+    await resetStarted;
+    const second = c.api.requestAccountChange("acct_south");
+    await expect(first).rejects.toMatchObject({ code: "TRANSITION_SUPERSEDED" });
+    expect(slow.prepareTransition).toHaveBeenCalledTimes(1);
+    finishSlowReset();
+    await second;
+    expect(slow.prepareTransition).toHaveBeenCalledTimes(2);
+    expect(failed.prepareTransition).toHaveBeenCalledTimes(1);
+    c.dispose();
+  });
+
+  it("stops resuming remotes when superseded during resume", async () => {
+    let finishResume!: () => void;
+    let resumeStarted!: () => void;
+    const started = new Promise<void>((resolve) => { resumeStarted = resolve; });
+    const first = fakeRemote({
+      resume: vi.fn(async (ctx) => {
+        if (ctx.toRevision === 1) {
+          resumeStarted();
+          await new Promise<void>((resolve) => { finishResume = resolve; });
+        }
+      }),
+    });
+    const second = fakeRemote();
+    const c = createSessionCoordinator({ auth });
+    c.registry.register("first", first);
+    c.registry.register("second", second);
+
+    const firstTransition = c.api.requestLogin();
+    await started;
+    const secondTransition = c.api.requestAccountChange("acct_south");
+    await expect(firstTransition).rejects.toMatchObject({ code: "TRANSITION_SUPERSEDED" });
+    finishResume();
+    await secondTransition;
+    expect(second.resume).toHaveBeenCalledTimes(1);
+    expect(second.resume).toHaveBeenCalledWith(expect.objectContaining({ toRevision: 2 }));
+    c.dispose();
+  });
 });
