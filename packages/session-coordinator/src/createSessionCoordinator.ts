@@ -87,8 +87,14 @@ export function createSessionCoordinator(options: CoordinatorOptions): {
   };
 
   const withTransition = async (run: (context: TransitionContext, command: Command) => Promise<SessionSnapshot>) => {
-    const { promise: superseded, reject: rejectSuperseded } = Promise.withResolvers<never>();
-    const { promise: timeout, reject: rejectTimeout } = Promise.withResolvers<never>();
+    let rejectSuperseded!: (error: Error) => void;
+    const superseded = new Promise<never>((_, reject) => {
+      rejectSuperseded = reject;
+    });
+    let rejectTimeout!: (error: Error) => void;
+    const timeout = new Promise<never>((_, reject) => {
+      rejectTimeout = reject;
+    });
     const command: Command = {
       generation: ++generation,
       superseded,

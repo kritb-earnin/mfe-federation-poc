@@ -23,9 +23,9 @@ export async function applyRequestControls(req: Request, res: Response, next: Ne
     return;
   }
   if (state.delayMs > 0 && (!state.delayRoutes || state.delayRoutes.has(route))) {
-    const { promise, resolve } = Promise.withResolvers<void>();
-    setTimeout(resolve, state.delayMs);
-    await promise;
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, state.delayMs);
+    });
   }
   next();
 }
