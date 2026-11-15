@@ -21,5 +21,6 @@ Production SSR needs request-scoped session state. Native/WebView and cross-orig
 
 ## Environment notes
 
-- Port `8080` may be occupied by unrelated local proxies (e.g. gvproxy); Modern.js will pick the next free port. Prefer freeing `8080` for documented `pnpm dev:poc` / E2E.
-- Playwright requires browser binaries installed once.
+- This workstation binds a proxy on `8080` (gvproxy). Shells therefore use **8090/8091/8092**. If Modern.js falls back from a busy configured port, asset URLs can still target the original port and break the UI.
+- Playwright requires browser binaries installed once (`pnpm --filter @poc/e2e exec playwright install chromium`).
+- Host must share React with `eager: true` for the React remote mount under Modern.js MF.
