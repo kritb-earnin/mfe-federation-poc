@@ -30,16 +30,6 @@ type Command = {
   timeout: Promise<never>;
 };
 
-function createDeferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
 export function createSessionCoordinator(options: CoordinatorOptions): {
   api: SessionApi;
   registry: RemoteRegistry;
@@ -97,8 +87,8 @@ export function createSessionCoordinator(options: CoordinatorOptions): {
   };
 
   const withTransition = async (run: (context: TransitionContext, command: Command) => Promise<SessionSnapshot>) => {
-    const { promise: superseded, reject: rejectSuperseded } = createDeferred<never>();
-    const { promise: timeout, reject: rejectTimeout } = createDeferred<never>();
+    const { promise: superseded, reject: rejectSuperseded } = Promise.withResolvers<never>();
+    const { promise: timeout, reject: rejectTimeout } = Promise.withResolvers<never>();
     const command: Command = {
       generation: ++generation,
       superseded,
