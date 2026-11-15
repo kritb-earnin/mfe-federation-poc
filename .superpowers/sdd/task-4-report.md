@@ -13,3 +13,11 @@ Implemented `@poc/mock-api` on port 4010 using Express and GraphQL. It serves he
 - Scoped order-note mutation returned HTTP 200; controls were reset after the check.
 
 The dev server was left running on port 4010 for the requested manual verification.
+
+## Review fixes
+
+- Added CORS for browser origins `http://localhost:8080`–`8082` and `http://localhost:5001`–`5002`, including the session/account/content-type headers and preflight `OPTIONS`.
+- Aligned `MockApiControls` request bodies with the controls router: delay `{ ms }`, fail-next `{ route, status? }`, and cleanup-fail `{ enabled }`.
+
+- Follow-up verification: `GET /health` returned HTTP 200 with `{"ok":true}`; posting `{"ms":0}` to `/__controls/delay` returned HTTP 200 with `{"ok":true}`.
+- CORS preflight from `http://localhost:8080` returned HTTP 204 with the configured allowed origin, methods, and headers.

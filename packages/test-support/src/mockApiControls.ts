@@ -14,16 +14,16 @@ export class MockApiControls {
     }
   }
 
-  delay(milliseconds: number): Promise<void> {
-    return this.post("delay", { milliseconds });
+  delay(ms: number): Promise<void> {
+    return this.post("delay", { ms });
   }
 
-  failNext(operation?: string): Promise<void> {
-    return this.post("fail-next", operation === undefined ? {} : { operation });
+  failNext(route: string, status?: number): Promise<void> {
+    return this.post("fail-next", { route, ...(status === undefined ? {} : { status }) });
   }
 
-  cleanupFail(): Promise<void> {
-    return this.post("cleanup-fail");
+  cleanupFail(enabled: boolean): Promise<void> {
+    return this.post("cleanup-fail", { enabled });
   }
 
   reset(): Promise<void> {

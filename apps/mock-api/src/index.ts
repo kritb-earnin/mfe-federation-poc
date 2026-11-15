@@ -6,6 +6,25 @@ import { restRouter } from "./rest.js";
 import { sessionRouter } from "./session.js";
 
 const app = express();
+const allowedOrigins = new Set([
+  ...[8080, 8081, 8082, 5001, 5002].map((port) => `http://localhost:${port}`),
+]);
+
+app.use((req, res, next) => {
+  const origin = req.get("origin");
+  if (origin && allowedOrigins.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "x-poc-session, x-poc-account, content-type");
+  }
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
