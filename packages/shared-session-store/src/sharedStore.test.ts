@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getSharedSessionStore } from "./sharedStore";
+import { getSharedSessionStore as getFromSiteA } from "./importSiteA";
+import { getSharedSessionStore as getFromSiteB } from "./importSiteB";
 
 describe("shared session store", () => {
-  it("returns the same coordinator reference for every call", () => {
-    expect(getSharedSessionStore()).toBe(getSharedSessionStore());
+  it("returns the same coordinator reference across import sites", () => {
+    expect(getFromSiteA()).toBe(getFromSiteB());
   });
 });
