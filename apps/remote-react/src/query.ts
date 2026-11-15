@@ -5,11 +5,16 @@ type Order = { id: string; description: string; status: "open" | "closed" };
 export const ordersQueryKey = (accountId: string | undefined, contextRevision: number) =>
   ["orders", accountId, contextRevision] as const;
 
-export function useOrders(session: SessionApi, accountId: string | undefined, contextRevision: number) {
+export function useOrders(
+  session: SessionApi,
+  accountId: string | undefined,
+  contextRevision: number,
+  enabled: boolean,
+) {
   const snapshot = session.getSnapshot();
   return useQuery({
     queryKey: ordersQueryKey(accountId, contextRevision),
-    enabled: snapshot.status === "authenticated" && Boolean(snapshot.subjectId && accountId),
+    enabled: enabled && snapshot.status === "authenticated" && Boolean(snapshot.subjectId && accountId),
     queryFn: async ({ signal }) => {
       const response = await fetch("http://127.0.0.1:4010/api/orders", {
         signal,

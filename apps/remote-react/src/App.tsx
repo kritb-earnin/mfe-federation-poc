@@ -14,12 +14,19 @@ type AppProps = {
 
 export function App({ session, blocked, localFeature, setLocalFeature }: AppProps) {
   const snapshot = useSessionSnapshot(session);
-  const ordersQuery = useOrders(session, snapshot.accountId, snapshot.contextRevision);
+  const ordersQuery = useOrders(session, snapshot.accountId, snapshot.contextRevision, blocked === null);
+
+  if (blocked) {
+    return (
+      <main>
+        <p role="alert">Remote paused: {blocked.message}</p>
+      </main>
+    );
+  }
 
   return (
     <main>
       <h1>Fictional React Orders</h1>
-      {blocked ? <p role="alert">Remote paused: {blocked.message}</p> : null}
       <p>Session status: {snapshot.status}</p>
       <p>Account: {snapshot.accountId ?? "none"} (fictional)</p>
       {snapshot.status !== "authenticated" ? <p>Sign in to view fictional orders.</p> : null}

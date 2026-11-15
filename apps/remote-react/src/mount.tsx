@@ -51,6 +51,9 @@ export const mount: RemoteMount = (element, capabilities): MountHandle => {
     },
     block(reason: RemoteBlockReason): void {
       blocked = reason;
+      localFeature = { draftNote: "" };
+      void queryClient.cancelQueries();
+      queryClient.clear();
       render();
     },
     dispose(): void {
