@@ -82,18 +82,57 @@ describe("createSessionCoordinator", () => {
     c.dispose();
   });
 
-  it("rejects a superseded competing account change", async () => {
-    let resolveChange!: (value: { subjectId: string; accountId: string }) => void;
-    const changeAccount = vi.fn(() => new Promise<{ subjectId: string; accountId: string }>((resolve) => {
-      resolveChange = resolve;
-    }));
-    const c = createSessionCoordinator({ auth: { ...auth, changeAccount } });
-    const first = c.api.requestAccountChange("acct_north");
+  it("serializes remote work after a superseded slow prepare", async () => {
+    let prepareCalls = 0;
+    let finishPrepare!: () => void;
+    let prepareStarted!: () => void;
+    const started = new Promise<void>((resolve) => { prepareStarted = resolve; });
+    const remote = fakeRemote({
+      prepareTransition: vi.fn(async () => {
+        prepareCalls += 1;
+        if (prepareCalls === 1) {
+          prepareStarted();
+          await new Promise<void>((resolve) => { finishPrepare = resolve; });
+        }
+      }),
+    });
+    const c = createSessionCoordinator({ auth });
+    c.registry.register("remote", remote);
+    const first = c.api.requestLogin();
+    await started;
     const second = c.api.requestAccountChange("acct_south");
     await expect(first).rejects.toMatchObject({ code: "TRANSITION_SUPERSEDED" });
-    resolveChange({ subjectId: "user_ava", accountId: "acct_south" });
+    expect(remote.prepareTransition).toHaveBeenCalledTimes(1);
+    finishPrepare();
     await second;
+    expect(remote.prepareTransition).toHaveBeenCalledTimes(2);
+    expect(remote.resetIdentityState).toHaveBeenCalledTimes(1);
     expect(c.api.getSnapshot()).toMatchObject({ status: "authenticated", accountId: "acct_south" });
+    c.dispose();
+  });
+
+  it("times out a hanging auth bridge without publishing late success", async () => {
+    let finishLogin!: (identity: { subjectId: string; accountId: string }) => void;
+    const login = new Promise<{ subjectId: string; accountId: string }>((resolve) => { finishLogin = resolve; });
+    const c = createSessionCoordinator({
+      auth: { ...auth, login: vi.fn(() => login) },
+      transitionTimeoutMs: 5,
+    });
+    await expect(c.api.requestLogin()).rejects.toMatchObject({ code: "TRANSITION_TIMEOUT" });
+    finishLogin({ subjectId: "user_ava", accountId: "acct_north" });
+    await Promise.resolve();
+    expect(c.api.getSnapshot()).toMatchObject({ status: "error", contextRevision: 1 });
+    c.dispose();
+  });
+
+  it("blocks a remote when reset times out and never resumes it", async () => {
+    const remote = fakeRemote({ resetIdentityState: vi.fn(() => new Promise<void>(() => {})) });
+    const c = createSessionCoordinator({ auth, transitionTimeoutMs: 5 });
+    c.registry.register("stuck-cleanup", remote);
+    await expect(c.api.requestLogin()).rejects.toMatchObject({ code: "TRANSITION_TIMEOUT" });
+    expect(remote.block).toHaveBeenCalledWith(expect.objectContaining({ type: "timeout" }));
+    expect(remote.resume).not.toHaveBeenCalled();
+    expect(c.api.getSnapshot()).toMatchObject({ status: "error" });
     c.dispose();
   });
 

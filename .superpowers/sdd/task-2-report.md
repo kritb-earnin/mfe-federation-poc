@@ -20,3 +20,11 @@ The initial test invocation failed while loading the package because the new tsc
 ## Commit
 
 `feat: add session-coordinator with transition protocol`
+## P1 hardening
+
+Serialized remote prepare/reset/resume lifecycle work so superseded callers reject immediately without overlapping remote work. Transition deadlines now cover auth and resume, late auth completion cannot publish success, and timeout blocks remotes, including during identity reset.
+
+Added failure-path tests for slow competing transitions, hanging auth, and hanging reset.
+
+- `pnpm --filter @poc/session-coordinator test` — PASS (10 tests)
+- `pnpm --filter @poc/session-coordinator typecheck` — PASS

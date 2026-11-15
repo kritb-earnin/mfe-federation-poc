@@ -54,6 +54,7 @@ export function createSessionCoordinator(options: CoordinatorOptions): {
   const { registry, remotes, blocked } = createRemoteRegistry();
   let generation = 0;
   let currentCommand: Command | undefined;
+  let remoteLifecycle: Promise<void> = Promise.resolve();
   let disposed = false;
 
   const publish = (snapshot: SessionSnapshot) => {
@@ -75,7 +76,6 @@ export function createSessionCoordinator(options: CoordinatorOptions): {
   };
 
   const runRemotes = async (
-    command: Command,
     context: TransitionContext,
     phase: "prepareTransition" | "resetIdentityState",
   ) => {
@@ -91,23 +91,7 @@ export function createSessionCoordinator(options: CoordinatorOptions): {
         throw error;
       }
     });
-    const result = Promise.all(tasks);
-    try {
-      await Promise.race([result, command.superseded, command.timeout]);
-      checkCurrent(command);
-    } catch (error) {
-      if (error instanceof SessionCommandError && error.code === "TRANSITION_SUPERSEDED") throw error;
-      if (phase === "prepareTransition" && error instanceof SessionCommandError && error.code === "TRANSITION_TIMEOUT") {
-        for (const [id, remote] of remotes) {
-          if (!blocked.has(id)) {
-            blocked.add(id);
-            remote.block({ type: "timeout", message: `Transition preparation exceeded ${timeoutMs}ms` });
-          }
-        }
-        throw error;
-      }
-      throw error;
-    }
+    await Promise.all(tasks);
   };
 
   const withTransition = async (run: (context: TransitionContext, command: Command) => Promise<SessionSnapshot>) => {
@@ -135,17 +119,37 @@ export function createSessionCoordinator(options: CoordinatorOptions): {
 
     const execute = async () => {
       try {
-        await runRemotes(command, context, "prepareTransition");
-        await runRemotes(command, context, "resetIdentityState");
+        const lifecycle = remoteLifecycle.then(async () => {
+          checkCurrent(command);
+          await runRemotes(context, "prepareTransition");
+          checkCurrent(command);
+          await runRemotes(context, "resetIdentityState");
+          checkCurrent(command);
+        });
+        remoteLifecycle = lifecycle.catch(() => {});
+        await Promise.race([lifecycle, command.superseded, command.timeout]);
         checkCurrent(command);
-        const next = await Promise.race([run(context, command), command.superseded]);
+        const next = await Promise.race([run(context, command), command.superseded, command.timeout]);
         checkCurrent(command);
         publish(next);
-        for (const [id, remote] of remotes) {
-          if (!blocked.has(id)) await remote.resume(context);
-        }
+        const resume = remoteLifecycle.then(async () => {
+          checkCurrent(command);
+          for (const [id, remote] of remotes) {
+            if (!blocked.has(id)) await remote.resume(context);
+          }
+        });
+        remoteLifecycle = resume.catch(() => {});
+        await Promise.race([resume, command.superseded, command.timeout]);
       } catch (error) {
         if (error instanceof SessionCommandError && error.code === "TRANSITION_SUPERSEDED") throw error;
+        if (error instanceof SessionCommandError && error.code === "TRANSITION_TIMEOUT") {
+          for (const [id, remote] of remotes) {
+            if (!blocked.has(id)) {
+              blocked.add(id);
+              remote.block({ type: "timeout", message: `Transition exceeded ${timeoutMs}ms` });
+            }
+          }
+        }
         if (command.generation === generation) {
           publish({ status: "error", contextRevision: toRevision });
         }
