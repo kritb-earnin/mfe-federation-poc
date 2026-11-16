@@ -1,8 +1,10 @@
 import { createStore } from "zustand/vanilla";
 import {
+  SHELL_CONTRACT_VERSION,
   ShellCommandError,
   assertLanguage,
   assertPath,
+  validateLayoutSpec,
   type Language,
   type LayoutSpec,
   type RemoteLifecycle,
@@ -41,8 +43,23 @@ export interface ShellRuntime {
 }
 
 type InternalState = { state: ShellState; view: ShellView };
+type LayoutEntry = { spec: LayoutSpec };
+type SlotClaim = { remoteId: string; render: (el: HTMLElement) => () => void; cleanup?: () => void; rendered: boolean };
+type FacadeToken = { revoked: boolean };
 
-/** Internal: state, navigation, language, view. Later tasks layer remotes, layout and slots on top. */
+/** Deep frozen copy of the known fields only, so later mutation of the caller's spec cannot reach the view. */
+const freezeLayout = (spec: LayoutSpec): LayoutSpec =>
+  Object.freeze({
+    title: spec.title,
+    breadcrumbs: spec.breadcrumbs && Object.freeze(spec.breadcrumbs.map((b) => Object.freeze({ label: b.label, path: b.path }))),
+    actions:
+      spec.actions &&
+      Object.freeze(
+        spec.actions.map((a) => Object.freeze({ id: a.id, label: a.label, disabled: a.disabled, onSelect: a.onSelect })),
+      ),
+  }) as LayoutSpec;
+
+/** Internal: state, navigation, language, view, per-remote facades, layout and slots. */
 export function createShellCore(options: ShellRuntimeOptions) {
   const { session, routes, resolveUser } = options;
   const prefixes = Object.keys(routes).sort((a, b) => b.length - a.length);
@@ -62,8 +79,12 @@ export function createShellCore(options: ShellRuntimeOptions) {
   const sameUser = (a: ShellUser | null, b: ShellUser | null) =>
     a === b || (a !== null && b !== null && a.subjectId === b.subjectId && a.displayName === b.displayName);
 
-  const makeView = (path: string): ShellView =>
-    Object.freeze({ activeRemoteId: remoteIdFor(path), layout: null });
+  const layouts = new Map<string, LayoutEntry>();
+  const makeView = (path: string): ShellView => {
+    const activeRemoteId = remoteIdFor(path);
+    const layout = (activeRemoteId === null ? undefined : layouts.get(activeRemoteId)?.spec) ?? null;
+    return Object.freeze({ activeRemoteId, layout });
+  };
   const initialPath = assertPath(options.initialPath ?? "/orders");
   const makeState = (path: string, language: Language, user: ShellUser | null): ShellState =>
     Object.freeze({ path, language, user });
@@ -100,19 +121,130 @@ export function createShellCore(options: ShellRuntimeOptions) {
   };
   const setLanguage = (code: Language) => patch({ language: assertLanguage(code) });
 
+  /** Rebuilds the view after a layout change; keeps identity when nothing visible changed. */
+  const refreshView = () => {
+    const { state, view } = store.getState();
+    const next = makeView(state.path);
+    if (next.activeRemoteId === view.activeRemoteId && next.layout === view.layout) return;
+    store.setState({ view: next });
+    notify();
+  };
+
+  const claims = new Map<SlotId, SlotClaim>();
+  const elements = new Map<SlotId, HTMLElement>();
+  const renderClaim = (id: SlotId) => {
+    const claim = claims.get(id);
+    const el = elements.get(id);
+    if (!claim || !el || claim.rendered) return;
+    try {
+      const cleanup = claim.render(el);
+      claim.cleanup = typeof cleanup === "function" ? cleanup : undefined;
+      claim.rendered = true;
+    } catch {
+      el.replaceChildren();
+      claims.delete(id);
+    }
+  };
+  /** Runs cleanup (contained) and empties the element; the claim itself is kept. */
+  const clearSlot = (id: SlotId) => {
+    const claim = claims.get(id);
+    if (claim?.rendered) {
+      claim.rendered = false;
+      try {
+        claim.cleanup?.();
+      } catch {
+        // contained: the element is emptied below regardless
+      }
+      claim.cleanup = undefined;
+    }
+    elements.get(id)?.replaceChildren();
+  };
+  const releaseClaim = (id: SlotId, claim: SlotClaim) => {
+    if (claims.get(id) !== claim) return;
+    clearSlot(id);
+    claims.delete(id);
+    notify();
+  };
+
+  const attachSlotElement = (id: SlotId, el: HTMLElement | null) => {
+    const previous = elements.get(id);
+    if (el === (previous ?? null)) return;
+    if (previous) clearSlot(id);
+    if (el) elements.set(id, el);
+    else elements.delete(id);
+    renderClaim(id);
+  };
+
+  const facades = new Map<string, FacadeToken>();
+  const revoke = (remoteId: string) => {
+    const token = facades.get(remoteId);
+    if (token) token.revoked = true;
+    facades.delete(remoteId);
+    for (const [id, claim] of claims) if (claim.remoteId === remoteId) releaseClaim(id, claim);
+    if (layouts.delete(remoteId)) refreshView();
+  };
+
+  const forRemote = (remoteId: string): ShellApi => {
+    if (facades.has(remoteId)) revoke(remoteId);
+    const token: FacadeToken = { revoked: false };
+    facades.set(remoteId, token);
+    const live = () => {
+      if (token.revoked) throw new ShellCommandError("FACADE_REVOKED", `Facade for ${remoteId} was revoked`);
+    };
+    return {
+      contractVersion: SHELL_CONTRACT_VERSION,
+      getState: () => store.getState().state as Readonly<ShellState>,
+      subscribe: (onChange) => subscribe(onChange),
+      navigate(path) {
+        live();
+        navigate(path);
+      },
+      setLanguage(code) {
+        live();
+        setLanguage(code);
+      },
+      setLayout(spec) {
+        live();
+        const entry: LayoutEntry = { spec: freezeLayout(validateLayoutSpec(spec)) };
+        layouts.set(remoteId, entry);
+        refreshView();
+        return () => {
+          if (layouts.get(remoteId) !== entry) return;
+          layouts.delete(remoteId);
+          refreshView();
+        };
+      },
+      claimSlot(id, render) {
+        live();
+        if (claims.has(id)) throw new ShellCommandError("SLOT_TAKEN", `Slot ${id} is already claimed`);
+        const claim: SlotClaim = { remoteId, render, rendered: false };
+        claims.set(id, claim);
+        renderClaim(id);
+        notify();
+        return () => releaseClaim(id, claim);
+      },
+    };
+  };
+
+  const subscribe = (onChange: () => void) => {
+    listeners.add(onChange);
+    return () => {
+      listeners.delete(onChange);
+    };
+  };
+
   const unsubscribeSession = session.subscribe(() => patch({ user: userFromSession() }));
 
   return {
     getState: () => store.getState().state as Readonly<ShellState>,
     getView: () => store.getState().view as Readonly<ShellView>,
-    subscribe(onChange: () => void) {
-      listeners.add(onChange);
-      return () => {
-        listeners.delete(onChange);
-      };
-    },
+    subscribe,
     navigate,
     setLanguage,
+    forRemote,
+    attachSlotElement,
+    /** Internal (Task 4): releases a remote's layout and slot claims and revokes its facade. */
+    revoke,
     dispose() {
       unsubscribeSession();
       listeners.clear();
@@ -129,10 +261,10 @@ export function createShellRuntime(options: ShellRuntimeOptions): ShellRuntime {
     getState: core.getState,
     getView: core.getView,
     subscribe: core.subscribe,
-    forRemote: notImplemented,
+    forRemote: core.forRemote,
     registerRemote: notImplemented,
     unregisterRemote: notImplemented,
-    attachSlotElement: notImplemented,
+    attachSlotElement: core.attachSlotElement,
     shellNavigate: notImplemented,
     shellSetLanguage: notImplemented,
     dispose: core.dispose,

@@ -52,6 +52,11 @@ describe("validateLayoutSpec", () => {
   it("rejects a non-string title", () => {
     expect(code(() => validateLayoutSpec({ title: 1 as unknown as string }))).toBe("INVALID_LAYOUT");
   });
+  it("rejects null spec and null entries with INVALID_LAYOUT", () => {
+    expect(code(() => validateLayoutSpec(null as never))).toBe("INVALID_LAYOUT");
+    expect(code(() => validateLayoutSpec({ actions: [null as never] }))).toBe("INVALID_LAYOUT");
+    expect(code(() => validateLayoutSpec({ breadcrumbs: [null as never] }))).toBe("INVALID_LAYOUT");
+  });
   it("accepts markup-looking text unchanged", () => {
     const spec = { title: "<img src=x onerror=alert(1)>" };
     expect(validateLayoutSpec(spec)).toEqual(spec);

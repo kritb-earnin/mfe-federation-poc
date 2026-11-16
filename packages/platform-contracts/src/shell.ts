@@ -81,12 +81,15 @@ export function validateLayoutSpec(spec: LayoutSpec): LayoutSpec {
       bad(`${what} must be a string of at most ${MAX_LABEL} characters`);
     }
   };
+  const isObject = (v: unknown) => typeof v === "object" && v !== null;
+  if (!isObject(spec)) bad("layout spec must be an object");
   if (spec.title !== undefined && typeof spec.title !== "string") bad("title must be a string");
   if (spec.breadcrumbs !== undefined) {
     if (!Array.isArray(spec.breadcrumbs) || spec.breadcrumbs.length > MAX_BREADCRUMBS) {
       bad(`at most ${MAX_BREADCRUMBS} breadcrumbs`);
     }
     for (const b of spec.breadcrumbs) {
+      if (!isObject(b)) bad("breadcrumb must be an object");
       label(b.label, "breadcrumb label");
       if (b.path !== undefined && typeof b.path !== "string") bad("breadcrumb path must be a string");
     }
@@ -96,6 +99,7 @@ export function validateLayoutSpec(spec: LayoutSpec): LayoutSpec {
       bad(`at most ${MAX_ACTIONS} actions`);
     }
     for (const a of spec.actions) {
+      if (!isObject(a)) bad("action must be an object");
       label(a.label, "action label");
       if (typeof a.id !== "string") bad("action id must be a string");
     }
