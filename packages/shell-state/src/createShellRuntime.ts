@@ -348,9 +348,6 @@ export function createShellCore(options: ShellRuntimeOptions) {
 
 export function createShellRuntime(options: ShellRuntimeOptions): ShellRuntime {
   const core = createShellCore(options);
-  const notImplemented = (): never => {
-    throw new Error("not implemented");
-  };
   return {
     getState: core.getState,
     getView: core.getView,
@@ -359,8 +356,8 @@ export function createShellRuntime(options: ShellRuntimeOptions): ShellRuntime {
     registerRemote: core.registerRemote,
     unregisterRemote: core.unregisterRemote,
     attachSlotElement: core.attachSlotElement,
-    shellNavigate: notImplemented,
-    shellSetLanguage: notImplemented,
+    shellNavigate: core.navigate,
+    shellSetLanguage: core.setLanguage,
     dispose: core.dispose,
   };
 }

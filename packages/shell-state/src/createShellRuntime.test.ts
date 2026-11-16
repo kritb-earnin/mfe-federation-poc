@@ -138,14 +138,40 @@ describe("shell core", () => {
   });
 });
 
-describe("createShellRuntime stubs", () => {
-  it("exposes state and throws not implemented for later-task methods", () => {
-    const session = fakeSession();
+describe("createShellRuntime shell commands", () => {
+  it("shellNavigate and shellSetLanguage validate and work with no remote registered", () => {
+    const session = fakeSession({ status: "authenticated", contextRevision: 3, subjectId: "user_ava" } as SessionSnapshot);
     const runtime = createShellRuntime({ session: session.api, routes, resolveUser });
+    const onChange = vi.fn();
+    runtime.subscribe(onChange);
     expect(runtime.getView()).toEqual({ activeRemoteId: "react", layout: null });
-    expect(() => runtime.shellNavigate("/summary")).toThrow("not implemented");
+
+    runtime.shellNavigate("/summary/x");
+    expect(runtime.getState().path).toBe("/summary/x");
+    expect(runtime.getView().activeRemoteId).toBe("vue");
+    expect(code(() => runtime.shellNavigate("/nope"))).toBe("INVALID_PATH");
+    expect(code(() => runtime.shellNavigate("Bad"))).toBe("INVALID_PATH");
+    expect(runtime.getState().path).toBe("/summary/x");
+
+    runtime.shellSetLanguage("th");
+    expect(runtime.getState().language).toBe("th");
+    expect(code(() => runtime.shellSetLanguage("fr" as never))).toBe("INVALID_LANGUAGE");
+    expect(runtime.getState().language).toBe("th");
+
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(session.api.getSnapshot().contextRevision).toBe(3);
+    expect(session.api.requestAccountChange).not.toHaveBeenCalled();
     runtime.dispose();
     expect(session.listeners.size).toBe(0);
+  });
+
+  it("shellNavigate keeps only the route root while transitioning", () => {
+    const session = fakeSession();
+    const runtime = createShellRuntime({ session: session.api, routes, resolveUser });
+    session.set({ status: "transitioning", contextRevision: 1 });
+    runtime.shellNavigate("/orders/ord_1");
+    expect(runtime.getState().path).toBe("/orders");
+    runtime.dispose();
   });
 });
 
