@@ -29,6 +29,9 @@ export function ShellApp({
   const [vueMounted, setVueMounted] = useState(true);
   const [forceCleanupFail, setForceCleanupFail] = useState(false);
 
+  // ponytail: runtime created in useMemo and disposed in an effect. Fine without StrictMode (not enabled);
+  // under StrictMode the double effect run would dispose the memoized runtime and leave it dead.
+  // Upgrade path: create the runtime in a ref/effect (create on mount, dispose on unmount).
   const runtime = useMemo(() => {
     const created = createShellRuntime({ session, routes: ROUTES, resolveUser });
     try {

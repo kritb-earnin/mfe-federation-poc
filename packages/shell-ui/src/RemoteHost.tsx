@@ -91,7 +91,8 @@ export function RemoteHost({
       dispose();
       capabilities.onEvent?.({ type: "remote.unmounted", detail: { id } });
     };
-  }, [mounted, id, capabilities.forceCleanupFail]);
+    // runtime and registry are memoized once per ShellApp (and per shell App), so they never remount in the normal flow
+  }, [mounted, id, capabilities.forceCleanupFail, runtime, registry]);
 
   return (
     <section aria-label={title} data-testid={`remote-host-${id}`} style={{ border: "1px solid #94a3b8", borderRadius: 8, padding: 12 }}>

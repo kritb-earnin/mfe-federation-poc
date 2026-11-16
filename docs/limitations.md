@@ -13,7 +13,9 @@ Module Federation remotes share the page realm. Capability injection does not sa
 
 ## Slots are not isolated
 
-Shell slots (`header`, `sidebar`) hand the remote a plain DOM element in the same realm. There is no iframe, shadow DOM or CSS sandbox: a remote can touch anything reachable from its slot element (parents, siblings, global styles) and the shell only empties the element on release/transition.
+Shell slots (`header`, `sidebar`) hand the remote a plain DOM element in the same realm. There is no iframe, shadow DOM or CSS sandbox: a remote can touch anything reachable from its slot element (parents, siblings, global styles) and the shell only empties the element on release, transition, block, unmount and dispose.
+
+A remote that is not blocked can still set a layout after the session reaches `error`. This is harmless: a layout holds no account data, and held slots stay held (not rendered) until that remote resumes.
 
 ## ShellCommandError across bundles
 
@@ -21,7 +23,7 @@ Shell slots (`header`, `sidebar`) hand the remote a plain DOM element in the sam
 
 ## Hash history
 
-`ShellChrome` mirrors `path` into `location.hash` (a push per change) and navigates on `hashchange`. Browser Back/Forward can restore an earlier hash path, including an `/orders/<id>` from a previous account when no transition is running. Only the transition-start truncation to the route root protects against stale ids.
+`ShellChrome` mirrors `path` into `location.hash` with `history.replaceState`, so no history entries are pushed: browser Back leaves the app instead of restoring an earlier `/orders/<id>` (which could belong to a previous account). A rejected or truncated hash path is written back to the current `path`. An external edit to the hash (typing in the address bar, a link) still fires `hashchange` and navigates through the usual validation.
 
 ## SSR / native excluded
 

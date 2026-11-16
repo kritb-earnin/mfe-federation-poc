@@ -810,3 +810,32 @@ describe("transitions and lifecycle wrapper", () => {
     expect(t.session.api.getSnapshot().contextRevision).toBe(2);
   });
 });
+
+describe("final review fixes", () => {
+  it("notify isolates a throwing listener: later listeners still run", () => {
+    const { core } = make();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const later = vi.fn();
+    core.subscribe(() => {
+      throw new Error("remote listener bug");
+    });
+    core.subscribe(later);
+    expect(() => core.navigate("/summary")).not.toThrow();
+    expect(later).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("state user is a frozen copy of the resolver's shared object", () => {
+    const shared = { subjectId: "user_ava", displayName: "Ava" };
+    const session = fakeSession({ status: "authenticated", subjectId: "user_ava", accountId: "acct_north", contextRevision: 1 });
+    const core = createShellCore({ session: session.api, routes, resolveUser: () => shared });
+    const user = core.getState().user!;
+    expect(user).toEqual(shared);
+    expect(Object.isFrozen(user)).toBe(true);
+    expect(() => {
+      (user as { displayName: string }).displayName = "Mallory";
+    }).toThrow(TypeError);
+    expect(shared.displayName).toBe("Ava");
+  });
+});

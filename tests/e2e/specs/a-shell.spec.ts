@@ -72,6 +72,7 @@ test.describe("shell-injected A: shell state, layout and slots", () => {
     const shell = new ShellPage(page);
     await shell.login();
     await expect(shell.slot("sidebar").getByTestId("vue-sidebar-account")).toContainText("North");
+    await expect(shell.slot("sidebar").getByTestId("vue-language-picker")).toBeVisible();
     await page.getByTestId(`react-order-open-${NORTH_ORDER}`).click();
     await expect(shell.path()).toHaveText(`/orders/${NORTH_ORDER}`);
 
@@ -80,7 +81,13 @@ test.describe("shell-injected A: shell state, layout and slots", () => {
     await controls.delay(2000, ["/api/session/account"]);
     await page.getByTestId("switch-south").click();
     await expect(shell.status()).toHaveText("transitioning");
+    // The picker renders whatever the session status, so its absence proves the shell emptied the slot
+    // (the card itself hides the account text unless authenticated).
+    await expect(shell.slot("sidebar").getByTestId("vue-language-picker")).toHaveCount(0);
+    await expect(shell.slot("sidebar")).toBeAttached();
     await expect(shell.slot("sidebar")).not.toContainText("North");
+    // Decoration only: the badge renders null whenever the session is not authenticated, so this
+    // cannot tell shell clearing from the remote's own rendering.
     await expect(shell.slot("header")).toBeEmpty();
     await expect(shell.path()).toHaveText("/orders");
     // Still inside the held transition, so the checks above ran while transitioning.
@@ -110,6 +117,8 @@ test.describe("shell-injected A: shell state, layout and slots", () => {
     await expect(shell.remoteRoot("vue")).toContainText(/paused/i);
     // Fail closed: the session ends in `error` and both blocked remotes lose their slot content.
     await expect(shell.status()).toHaveText("error");
+    // Header check is decoration only: the badge renders null for any non-authenticated status, `error`
+    // included. The sidebar check is the real one (the picker would render in `error`).
     await expect(shell.slot("header")).toBeEmpty();
     await expect(shell.slot("sidebar")).toBeEmpty();
 
@@ -141,5 +150,54 @@ test.describe("shell-injected A: shell state, layout and slots", () => {
     await expect(shell.remoteStatus("react")).toHaveText("mounted");
     await expect(shell.slot("header")).toContainText("Open orders");
     await expect(shell.action("refresh")).toBeVisible();
+  });
+
+  test("18 a long order id (deep link and in-session) still yields a valid layout", async ({ page }) => {
+    const shell = new ShellPage(page);
+    const longPath = `/orders/order_${"z".repeat(54)}`; // 60-character id
+    // reload so the remote mounts with the long path already set (deep link)
+    await page.goto(`/#${longPath}`);
+    await page.reload();
+    await expect(shell.path()).toHaveText(longPath);
+    // "mounted" is only shown after registry.register succeeded
+    await expect(shell.remoteStatus("react")).toHaveText("mounted");
+    await expect(shell.title()).toContainText("Order order_zzz");
+    expect((await shell.title().textContent())!.length).toBeLessThanOrEqual(40);
+
+    // login truncates the path to the route root; set the long id again in-session
+    await shell.login();
+    await page.evaluate((path) => {
+      location.hash = `#${path}`;
+    }, longPath);
+    await expect(shell.path()).toHaveText(longPath);
+    await expect(page.getByTestId("react-heading")).toBeVisible();
+    await expect(shell.remoteRoot("react")).toContainText("Order not found");
+    await expect(shell.title()).toContainText("…");
+    // Vue still receives shell notifications (language) after React's listener ran
+    await shell.setLanguage("th");
+    await expect(page.getByTestId("vue-heading")).toHaveText(VUE_HEADING_TH);
+  });
+
+  test("19 browser Back does not restore a previous account's order id", async ({ page }) => {
+    const shell = new ShellPage(page);
+    // Seed one in-app entry (an external hash edit pushes) so Back provably lands inside the app.
+    await page.evaluate(() => {
+      location.hash = "#/summary";
+    });
+    await expect(shell.path()).toHaveText("/summary");
+    await shell.navTo("orders");
+    await shell.login();
+    await page.getByTestId(`react-order-open-${NORTH_ORDER}`).click();
+    await expect(shell.path()).toHaveText(`/orders/${NORTH_ORDER}`);
+    await shell.switchSouth();
+    await expect(shell.path()).toHaveText("/orders");
+
+    // The shell pushes no entries, so Back goes to the seeded entry's predecessor (`/#/orders`), not the North order.
+    await page.goBack();
+    await expect(page).not.toHaveURL(new RegExp(NORTH_ORDER));
+    await expect(shell.path()).toHaveText("/orders");
+    await expect(shell.account()).toContainText("South");
+    await expect(shell.title()).toHaveText("Orders");
+    await expect(shell.title()).not.toContainText(NORTH_ORDER);
   });
 });

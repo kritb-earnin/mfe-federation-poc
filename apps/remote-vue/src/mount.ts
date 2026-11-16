@@ -63,11 +63,17 @@ export const mount: RemoteMount = (element, capabilities): MountHandle => {
     const current = snapshot();
     const key = [language, current.status, current.accountId, current.contextRevision].join("|");
     if (!force && key === layoutKey) return; // setLayout notifies subscribers; the key stops the loop
+    // Set before sending: setLayout notifies our own subscriber, which re-enters syncLayout. Reset on failure.
     layoutKey = key;
-    releaseLayout?.();
-    releaseLayout = tryShell(() =>
-      shell.setLayout({ title: t(language, "Account summary"), breadcrumbs: [{ label: t(language, "Summary") }] }),
-    );
+    try {
+      releaseLayout?.();
+      releaseLayout = tryShell(() =>
+        shell.setLayout({ title: t(language, "Account summary"), breadcrumbs: [{ label: t(language, "Summary") }] }),
+      );
+    } catch (error) {
+      layoutKey = ""; // retried on the next change
+      throw error;
+    }
   };
   /** Used from block/dispose: release functions only, and nothing may throw out of these lifecycle paths. */
   const releaseShell = () => {

@@ -65,7 +65,7 @@ SHELL_A_URL=http://localhost:8090 pnpm test:e2e
 8. Delayed work during transition → completes under old revision policy; no auto-retry.
 9. Fail-next on `/api/session/account` → error shown; safe recoverable state.
 
-Shell API scenarios (Playwright shell A, scenarios 10-17):
+Shell API scenarios (Playwright shell A, scenarios 10-19):
 
 10. Language set in the shell reaches both remotes without a session revision change.
 11. Language set by a remote reaches the shell and the other remote.
@@ -75,14 +75,16 @@ Shell API scenarios (Playwright shell A, scenarios 10-17):
 15. During an account switch slots hold no old-account text and `path` is truncated to its route root.
 16. Forced cleanup failure fails closed: slot content is removed.
 17. Unmounting a remote removes its layout and slots.
+18. A 60-character order id (deep link and in-session) still yields a valid layout; the remote mounts and registers.
+19. Browser Back after an account switch does not restore the previous account's order id.
 
 ## Test results (executed 2026-11-16)
 
 | Suite | Result | Notes |
 | --- | --- | --- |
-| Unit (`platform-contracts`, `session-coordinator`, `shell-state`, `shared-session-store`) | **84 passed** | vitest (17 + 12 + 54 + 1) |
-| Playwright shell A (scenarios 1–17) | **17 passed** | `SHELL_A_URL=http://localhost:8090` |
-| Playwright B/C smoke | **2 passed** | `SHELL_B_URL=http://localhost:8091`, `SHELL_C_URL=http://localhost:8092` (19 total, 0 skipped) |
+| Unit (`platform-contracts`, `session-coordinator`, `shell-state`, `shared-session-store`) | **86 passed** | vitest (17 + 12 + 56 + 1) |
+| Playwright shell A (scenarios 1–19) | **19 passed** | `SHELL_A_URL=http://localhost:8090` |
+| Playwright B/C smoke | **2 passed** | `SHELL_B_URL=http://localhost:8091`, `SHELL_C_URL=http://localhost:8092` (21 total, 0 skipped) |
 | Typecheck (shells, remotes, shell-ui) | **pass** | MF config files excluded from tsc where SDK types are non-portable |
 
 ## Docs

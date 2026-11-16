@@ -12,6 +12,10 @@ const NAV = [
   { id: "summary", label: "Summary", path: "/summary", remoteId: "vue" },
 ] as const;
 
+const writeHash = (path: string) => {
+  if (location.hash.slice(1) !== path) history.replaceState(null, "", `#${path}`);
+};
+
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 /** Stable ref so re-renders never detach (and thereby clean up) a remote's slot content. */
@@ -30,21 +34,24 @@ export function ShellChrome({ runtime, onEvent }: Props) {
   const headerRef = useSlotRef(runtime, "header");
   const sidebarRef = useSlotRef(runtime, "sidebar");
 
+  // The hash mirrors `path` with replaceState only: pushed entries would let Back restore an
+  // `/orders/<id>` from a previous account. replaceState fires no hashchange, so no loop.
   useEffect(() => {
     const onHashChange = () => {
       try {
         runtime.shellNavigate(location.hash.slice(1));
       } catch {
         // invalid or unknown paths in the hash are ignored
+      } finally {
+        // a rejected or truncated path must not stay in the address bar
+        writeHash(runtime.getState().path);
       }
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, [runtime]);
 
-  useEffect(() => {
-    if (location.hash.slice(1) !== state.path) location.hash = state.path;
-  }, [state.path]);
+  useEffect(() => writeHash(state.path), [state.path]);
 
   const navigate = (path: string) => {
     try {

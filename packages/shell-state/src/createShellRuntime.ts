@@ -87,10 +87,12 @@ export function createShellCore(options: ShellRuntimeOptions) {
     return prefix === undefined ? null : routes[prefix]!;
   };
 
-  const userFrom = (snapshot: SessionSnapshot): ShellUser | null =>
-    snapshot.status === "authenticated" && snapshot.subjectId !== undefined
-      ? resolveUser(snapshot.subjectId)
-      : null;
+  const userFrom = (snapshot: SessionSnapshot): ShellUser | null => {
+    if (snapshot.status !== "authenticated" || snapshot.subjectId === undefined) return null;
+    const user = resolveUser(snapshot.subjectId);
+    // frozen copy: the resolver may hand out a shared object (FICTIONAL_USERS)
+    return user ? Object.freeze({ ...user }) : null;
+  };
   const sameUser = (a: ShellUser | null, b: ShellUser | null) =>
     a === b || (a !== null && b !== null && a.subjectId === b.subjectId && a.displayName === b.displayName);
 
@@ -113,7 +115,14 @@ export function createShellCore(options: ShellRuntimeOptions) {
   }));
   const listeners = new Set<() => void>();
   const notify = () => {
-    for (const listener of [...listeners]) listener();
+    for (const listener of [...listeners]) {
+      try {
+        listener();
+      } catch (error) {
+        // one remote's listener must not skip the others (or the shell's own)
+        console.error("[shell-state] listener failed", error);
+      }
+    }
   };
 
   /**

@@ -42,3 +42,8 @@ function isShellCommandError(error: unknown): error is ShellCommandError {
 export function orderIdFromPath(path: string | undefined): string | null {
   return path?.match(/^\/orders\/([^/]+)$/)?.[1] ?? null;
 }
+
+/** Mirrors the contract's 40-character label limit (validateLayoutSpec); truncates with an ellipsis. */
+export function clampLabel(label: string, max = 40): string {
+  return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+}
