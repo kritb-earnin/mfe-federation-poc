@@ -9,6 +9,7 @@ import {
   type LayoutSpec,
   type RemoteLifecycle,
   type SessionApi,
+  type SessionSnapshot,
   type ShellApi,
   type ShellState,
   type ShellUser,
@@ -44,20 +45,33 @@ export interface ShellRuntime {
 
 type InternalState = { state: ShellState; view: ShellView };
 type LayoutEntry = { spec: LayoutSpec };
-type SlotClaim = { remoteId: string; render: (el: HTMLElement) => () => void; cleanup?: () => void; rendered: boolean };
+type SlotClaim = {
+  remoteId: string;
+  render: (el: HTMLElement) => () => void;
+  cleanup?: () => void;
+  rendered: boolean;
+  /** Set on `transitioning`; only that remote's wrapper `resume` clears it. A held claim never renders. */
+  held: boolean;
+};
 type FacadeToken = { revoked: boolean };
+type Registration = { blocked: boolean };
+
+const SLOT_IDS: readonly string[] = ["header", "sidebar"];
+
+/** Frozen copy of the listed keys that are present (not undefined). */
+const pick = <T extends object>(o: T, keys: readonly (keyof T)[]): T =>
+  Object.freeze(Object.fromEntries(keys.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]))) as T;
 
 /** Deep frozen copy of the known fields only, so later mutation of the caller's spec cannot reach the view. */
 const freezeLayout = (spec: LayoutSpec): LayoutSpec =>
-  Object.freeze({
-    title: spec.title,
-    breadcrumbs: spec.breadcrumbs && Object.freeze(spec.breadcrumbs.map((b) => Object.freeze({ label: b.label, path: b.path }))),
-    actions:
-      spec.actions &&
-      Object.freeze(
-        spec.actions.map((a) => Object.freeze({ id: a.id, label: a.label, disabled: a.disabled, onSelect: a.onSelect })),
-      ),
-  }) as LayoutSpec;
+  pick(
+    {
+      title: spec.title,
+      breadcrumbs: spec.breadcrumbs && Object.freeze(spec.breadcrumbs.map((b) => pick(b, ["label", "path"]))),
+      actions: spec.actions && Object.freeze(spec.actions.map((a) => pick(a, ["id", "label", "disabled", "onSelect"]))),
+    } as LayoutSpec,
+    ["title", "breadcrumbs", "actions"],
+  );
 
 /** Internal: state, navigation, language, view, per-remote facades, layout and slots. */
 export function createShellCore(options: ShellRuntimeOptions) {
@@ -70,12 +84,10 @@ export function createShellCore(options: ShellRuntimeOptions) {
     return prefix === undefined ? null : routes[prefix]!;
   };
 
-  const userFromSession = (): ShellUser | null => {
-    const snapshot = session.getSnapshot();
-    return snapshot.status === "authenticated" && snapshot.subjectId !== undefined
+  const userFrom = (snapshot: SessionSnapshot): ShellUser | null =>
+    snapshot.status === "authenticated" && snapshot.subjectId !== undefined
       ? resolveUser(snapshot.subjectId)
       : null;
-  };
   const sameUser = (a: ShellUser | null, b: ShellUser | null) =>
     a === b || (a !== null && b !== null && a.subjectId === b.subjectId && a.displayName === b.displayName);
 
@@ -89,8 +101,11 @@ export function createShellCore(options: ShellRuntimeOptions) {
   const makeState = (path: string, language: Language, user: ShellUser | null): ShellState =>
     Object.freeze({ path, language, user });
 
+  const initialSnapshot = session.getSnapshot();
+  /** Cached from the session subscription so commands never read the session. */
+  let transitioning = initialSnapshot.status === "transitioning";
   const store = createStore<InternalState>(() => ({
-    state: makeState(initialPath, "en", userFromSession()),
+    state: makeState(initialPath, "en", userFrom(initialSnapshot)),
     view: makeView(initialPath),
   }));
   const listeners = new Set<() => void>();
@@ -98,17 +113,24 @@ export function createShellCore(options: ShellRuntimeOptions) {
     for (const listener of [...listeners]) listener();
   };
 
-  /** Replaces state only when a field changed, so identity is stable otherwise. */
-  const patch = (next: Partial<ShellState>) => {
+  /**
+   * Applies state changes and rebuilds the view; state and view identity are kept when nothing in them changed.
+   * Notifies once when either changed, or when `force` is set (slot claims changed).
+   */
+  const patch = (next: Partial<ShellState> = {}, force = false) => {
     const { state, view } = store.getState();
     const path = next.path ?? state.path;
     const language = next.language ?? state.language;
-    const user = next.user === undefined ? state.user : next.user;
-    if (path === state.path && language === state.language && sameUser(user, state.user)) return;
-    store.setState({
-      state: makeState(path, language, sameUser(user, state.user) ? state.user : user),
-      view: path === state.path ? view : makeView(path),
-    });
+    const user = next.user === undefined || sameUser(next.user, state.user) ? state.user : next.user;
+    const stateSame = path === state.path && language === state.language && user === state.user;
+    const candidate = makeView(path);
+    const viewSame = candidate.activeRemoteId === view.activeRemoteId && candidate.layout === view.layout;
+    if (!stateSame || !viewSame) {
+      store.setState({
+        state: stateSame ? state : makeState(path, language, user),
+        view: viewSame ? view : candidate,
+      });
+    } else if (!force) return;
     notify();
   };
 
@@ -121,28 +143,22 @@ export function createShellCore(options: ShellRuntimeOptions) {
   };
   const setLanguage = (code: Language) => patch({ language: assertLanguage(code) });
 
-  /** Rebuilds the view after a layout change; keeps identity when nothing visible changed. */
-  const refreshView = () => {
-    const { state, view } = store.getState();
-    const next = makeView(state.path);
-    if (next.activeRemoteId === view.activeRemoteId && next.layout === view.layout) return;
-    store.setState({ view: next });
-    notify();
-  };
-
   const claims = new Map<SlotId, SlotClaim>();
   const elements = new Map<SlotId, HTMLElement>();
-  const renderClaim = (id: SlotId) => {
+  /** Renders a live claim into its element. Returns false when a throwing render dropped the claim. */
+  const renderClaim = (id: SlotId): boolean => {
     const claim = claims.get(id);
     const el = elements.get(id);
-    if (!claim || !el || claim.rendered) return;
+    if (!claim || !el || claim.rendered || claim.held) return true;
     try {
       const cleanup = claim.render(el);
       claim.cleanup = typeof cleanup === "function" ? cleanup : undefined;
       claim.rendered = true;
+      return true;
     } catch {
       el.replaceChildren();
       claims.delete(id);
+      return false;
     }
   };
   /** Runs cleanup (contained) and empties the element; the claim itself is kept. */
@@ -159,10 +175,13 @@ export function createShellCore(options: ShellRuntimeOptions) {
     }
     elements.get(id)?.replaceChildren();
   };
-  const releaseClaim = (id: SlotId, claim: SlotClaim) => {
-    if (claims.get(id) !== claim) return;
+  const dropClaim = (id: SlotId) => {
     clearSlot(id);
     claims.delete(id);
+  };
+  const releaseClaim = (id: SlotId, claim: SlotClaim) => {
+    if (claims.get(id) !== claim) return;
+    dropClaim(id);
     notify();
   };
 
@@ -172,7 +191,7 @@ export function createShellCore(options: ShellRuntimeOptions) {
     if (previous) clearSlot(id);
     if (el) elements.set(id, el);
     else elements.delete(id);
-    renderClaim(id);
+    if (!renderClaim(id)) notify();
   };
 
   const facades = new Map<string, FacadeToken>();
@@ -180,8 +199,14 @@ export function createShellCore(options: ShellRuntimeOptions) {
     const token = facades.get(remoteId);
     if (token) token.revoked = true;
     facades.delete(remoteId);
-    for (const [id, claim] of claims) if (claim.remoteId === remoteId) releaseClaim(id, claim);
-    if (layouts.delete(remoteId)) refreshView();
+    let dropped = false;
+    for (const [id, claim] of claims) {
+      if (claim.remoteId !== remoteId) continue;
+      dropClaim(id);
+      dropped = true;
+    }
+    layouts.delete(remoteId);
+    patch({}, dropped);
   };
 
   const forRemote = (remoteId: string): ShellApi => {
@@ -207,17 +232,18 @@ export function createShellCore(options: ShellRuntimeOptions) {
         live();
         const entry: LayoutEntry = { spec: freezeLayout(validateLayoutSpec(spec)) };
         layouts.set(remoteId, entry);
-        refreshView();
+        patch();
         return () => {
           if (layouts.get(remoteId) !== entry) return;
           layouts.delete(remoteId);
-          refreshView();
+          patch();
         };
       },
       claimSlot(id, render) {
         live();
+        if (!SLOT_IDS.includes(id)) throw new ShellCommandError("INVALID_LAYOUT", `Unknown slot: ${String(id)}`);
         if (claims.has(id)) throw new ShellCommandError("SLOT_TAKEN", `Slot ${id} is already claimed`);
-        const claim: SlotClaim = { remoteId, render, rendered: false };
+        const claim: SlotClaim = { remoteId, render, rendered: false, held: transitioning };
         claims.set(id, claim);
         renderClaim(id);
         notify();
@@ -233,7 +259,59 @@ export function createShellCore(options: ShellRuntimeOptions) {
     };
   };
 
-  const unsubscribeSession = session.subscribe(() => patch({ user: userFromSession() }));
+  const registrations = new Map<string, Registration>();
+  /** Wraps a remote's lifecycle so block/dispose revoke its contributions and resume re-renders its slots. */
+  const registerRemote = (remoteId: string, lifecycle: RemoteLifecycle): RemoteLifecycle => {
+    const reg: Registration = { blocked: false };
+    registrations.set(remoteId, reg);
+    /** A stale wrapper (after unregister or re-register) must not touch the current mount. */
+    const current = () => registrations.get(remoteId) === reg;
+    return {
+      prepareTransition: (ctx) => lifecycle.prepareTransition(ctx),
+      resetIdentityState: (ctx) => lifecycle.resetIdentityState(ctx),
+      async resume(ctx) {
+        await lifecycle.resume(ctx);
+        // checked after the await: block, unregister or a new transition may land meanwhile
+        if (!current() || reg.blocked || transitioning) return;
+        let dropped = false;
+        for (const [id, claim] of claims) {
+          if (claim.remoteId !== remoteId) continue;
+          claim.held = false;
+          if (!renderClaim(id)) dropped = true;
+        }
+        if (dropped) notify();
+      },
+      block(reason) {
+        if (current()) {
+          reg.blocked = true;
+          revoke(remoteId);
+        }
+        lifecycle.block(reason);
+      },
+      dispose() {
+        if (current()) revoke(remoteId);
+        lifecycle.dispose();
+      },
+    };
+  };
+  const unregisterRemote = (remoteId: string) => {
+    registrations.delete(remoteId);
+    revoke(remoteId);
+  };
+
+  const unsubscribeSession = session.subscribe(() => {
+    const snapshot = session.getSnapshot();
+    transitioning = snapshot.status === "transitioning";
+    if (!transitioning) return patch({ user: userFrom(snapshot) });
+    // Old-context contributions leave the DOM and state; claims are kept (held) for resume.
+    layouts.clear();
+    for (const [id, claim] of claims) {
+      claim.held = true;
+      clearSlot(id);
+    }
+    const { path } = store.getState().state;
+    patch({ user: userFrom(snapshot), path: matchRoute(path) ?? path });
+  });
 
   return {
     getState: () => store.getState().state as Readonly<ShellState>,
@@ -243,11 +321,21 @@ export function createShellCore(options: ShellRuntimeOptions) {
     setLanguage,
     forRemote,
     attachSlotElement,
-    /** Internal (Task 4): releases a remote's layout and slot claims and revokes its facade. */
+    registerRemote,
+    unregisterRemote,
+    /** Internal: releases a remote's layout and slot claims and revokes its facade. */
     revoke,
     dispose() {
-      unsubscribeSession();
+      for (const id of [...claims.keys()]) dropClaim(id);
+      for (const el of elements.values()) el.replaceChildren();
+      elements.clear();
+      for (const token of facades.values()) token.revoked = true;
+      facades.clear();
+      registrations.clear();
+      layouts.clear();
+      patch();
       listeners.clear();
+      unsubscribeSession();
     },
   };
 }
@@ -262,8 +350,8 @@ export function createShellRuntime(options: ShellRuntimeOptions): ShellRuntime {
     getView: core.getView,
     subscribe: core.subscribe,
     forRemote: core.forRemote,
-    registerRemote: notImplemented,
-    unregisterRemote: notImplemented,
+    registerRemote: core.registerRemote,
+    unregisterRemote: core.unregisterRemote,
     attachSlotElement: core.attachSlotElement,
     shellNavigate: notImplemented,
     shellSetLanguage: notImplemented,

@@ -143,7 +143,6 @@ describe("createShellRuntime stubs", () => {
     const session = fakeSession();
     const runtime = createShellRuntime({ session: session.api, routes, resolveUser });
     expect(runtime.getView()).toEqual({ activeRemoteId: "react", layout: null });
-    expect(() => runtime.registerRemote("react", {} as never)).toThrow("not implemented");
     expect(() => runtime.shellNavigate("/summary")).toThrow("not implemented");
     runtime.dispose();
     expect(session.listeners.size).toBe(0);
@@ -433,5 +432,300 @@ describe("createShellRuntime facade", () => {
     react.setLayout({ title: "A" });
     expect(el.nodes).toEqual(["content"]);
     expect(runtime.getView().layout?.title).toBe("A");
+  });
+});
+
+describe("review fixes", () => {
+  it("a throwing render reached through attachSlotElement notifies", () => {
+    const { core } = make();
+    core.forRemote("react").claimSlot("header", () => {
+      throw new Error("boom");
+    });
+    const onChange = vi.fn();
+    core.subscribe(onChange);
+    core.attachSlotElement("header", fakeEl());
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("a throwing render at claim time notifies once", () => {
+    const { core } = make();
+    core.attachSlotElement("header", fakeEl());
+    const onChange = vi.fn();
+    core.subscribe(onChange);
+    core.forRemote("react").claimSlot("header", () => {
+      throw new Error("boom");
+    });
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("claimSlot rejects an unknown slot id at runtime", () => {
+    const { core } = make();
+    expect(code(() => core.forRemote("react").claimSlot("footer" as never, renderer().render))).toBe("INVALID_LAYOUT");
+  });
+
+  it("freezeLayout copies only present keys", () => {
+    const { core } = make();
+    core.forRemote("react").setLayout({
+      breadcrumbs: [{ label: "Home" }],
+      actions: [{ id: "x", label: "X", onSelect: () => {} }],
+    });
+    const layout = core.getView().layout!;
+    expect(Object.keys(layout)).toEqual(["breadcrumbs", "actions"]);
+    expect(Object.keys(layout.breadcrumbs![0]!)).toEqual(["label"]);
+    expect(Object.keys(layout.actions![0]!)).toEqual(["id", "label", "onSelect"]);
+    core.forRemote("vue").setLayout({ title: "T" });
+    core.navigate("/summary");
+    expect(Object.keys(core.getView().layout!)).toEqual(["title"]);
+  });
+
+  it("revoke notifies once", () => {
+    const { core } = make();
+    core.attachSlotElement("header", fakeEl());
+    core.attachSlotElement("sidebar", fakeEl());
+    const react = core.forRemote("react");
+    react.setLayout({ title: "A" });
+    react.claimSlot("header", renderer().render);
+    react.claimSlot("sidebar", renderer().render);
+    const onChange = vi.fn();
+    core.subscribe(onChange);
+    core.revoke("react");
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("dispose cleans every slot, empties elements, revokes facades and clears layouts", () => {
+    const { core, session } = make();
+    const el = fakeEl();
+    core.attachSlotElement("header", el);
+    const react = core.forRemote("react");
+    react.setLayout({ title: "A" });
+    const { render, cleanup } = renderer();
+    react.claimSlot("header", render);
+    const vue = core.forRemote("vue");
+    vue.claimSlot("sidebar", () => {
+      throw new Error("never attached");
+    });
+    core.dispose();
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(el.nodes).toEqual([]);
+    expect(core.getView().layout).toBeNull();
+    expect(code(() => react.setLayout({ title: "B" }))).toBe("FACADE_REVOKED");
+    expect(code(() => vue.navigate("/summary"))).toBe("FACADE_REVOKED");
+    expect(session.listeners.size).toBe(0);
+  });
+});
+
+const ctx = { fromRevision: 1, toRevision: 2, reason: "account-change" } as never;
+function fakeLifecycle() {
+  const calls: string[] = [];
+  const lifecycle = {
+    prepareTransition: vi.fn(async (_c: unknown) => void calls.push("prepare")),
+    resetIdentityState: vi.fn(async (_c: unknown) => void calls.push("reset")),
+    resume: vi.fn(async (_c: unknown) => void calls.push("resume")),
+    block: vi.fn((_r: unknown) => void calls.push("block")),
+    dispose: vi.fn(() => void calls.push("dispose")),
+  };
+  return { lifecycle, calls };
+}
+const authed = (rev: number) =>
+  ({ status: "authenticated", subjectId: "user_ava", accountId: `a${rev}`, contextRevision: rev }) as SessionSnapshot;
+
+/** runtime with a react remote that holds the header slot and a layout */
+function transitionSetup() {
+  const session = fakeSession(authed(1));
+  const runtime = createShellRuntime({ session: session.api, routes, resolveUser });
+  const el = fakeEl();
+  runtime.attachSlotElement("header", el);
+  const shell = runtime.forRemote("react");
+  const { lifecycle, calls } = fakeLifecycle();
+  const wrapper = runtime.registerRemote("react", lifecycle);
+  shell.setLayout({ title: "A" });
+  const r = renderer();
+  const render = vi.fn((e: HTMLElement) => {
+    calls.push("render");
+    return r.render(e);
+  });
+  shell.claimSlot("header", render);
+  return { session, runtime, el, shell, lifecycle, calls, wrapper, render, cleanup: r.cleanup };
+}
+
+describe("transitions and lifecycle wrapper", () => {
+  it("transitioning clears layout, cleans the slot once, keeps the claim, truncates path", () => {
+    const t = transitionSetup();
+    t.runtime.forRemote("vue").setLayout({ title: "B" });
+    t.shell.navigate("/orders/ord_1");
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    expect(t.runtime.getView().layout).toBeNull();
+    expect(t.cleanup).toHaveBeenCalledTimes(1);
+    expect(t.el.nodes).toEqual([]);
+    expect(t.runtime.getState().path).toBe("/orders");
+    expect(code(() => t.runtime.forRemote("vue").claimSlot("header", renderer().render))).toBe("SLOT_TAKEN");
+  });
+
+  it("a path already at its root stays; view is rebuilt even when the path is unchanged", () => {
+    const t = transitionSetup();
+    t.runtime.forRemote("vue").setLayout({ title: "B" });
+    t.shell.navigate("/summary");
+    expect(t.runtime.getView().layout?.title).toBe("B");
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    expect(t.runtime.getState().path).toBe("/summary");
+    expect(t.runtime.getView().layout).toBeNull();
+  });
+
+  it("repeated transitioning snapshots are idempotent", () => {
+    const t = transitionSetup();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    expect(() => t.session.set({ status: "transitioning", contextRevision: 3 })).not.toThrow();
+    expect(t.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("wrapper resume delegates first, then renders the slot again", async () => {
+    const t = transitionSetup();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    t.session.set(authed(2));
+    expect(t.render).toHaveBeenCalledTimes(1);
+    await t.wrapper.resume(ctx);
+    expect(t.lifecycle.resume).toHaveBeenCalledWith(ctx);
+    expect(t.calls).toEqual(["render", "resume", "render"]);
+    expect(t.el.nodes).toEqual(["content"]);
+  });
+
+  it("resume while still transitioning does not render", async () => {
+    const t = transitionSetup();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    await t.wrapper.resume(ctx);
+    expect(t.render).toHaveBeenCalledTimes(1);
+    expect(t.el.nodes).toEqual([]);
+  });
+
+  it("block during a transition revokes; a later resume does not render", async () => {
+    const t = transitionSetup();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    t.wrapper.block("cleanup-failed" as never);
+    expect(t.lifecycle.block).toHaveBeenCalledWith("cleanup-failed");
+    expect(code(() => t.shell.setLayout({ title: "x" }))).toBe("FACADE_REVOKED");
+    expect(code(() => t.runtime.forRemote("vue").claimSlot("header", renderer().render))).toBeUndefined();
+    t.session.set(authed(2));
+    await t.wrapper.resume(ctx);
+    expect(t.render).toHaveBeenCalledTimes(1);
+  });
+
+  it("block revokes before delegating", () => {
+    const t = transitionSetup();
+    t.lifecycle.block.mockImplementation(() => {
+      expect(code(() => t.shell.setLayout({ title: "x" }))).toBe("FACADE_REVOKED");
+    });
+    t.wrapper.block("x" as never);
+    expect(t.lifecycle.block).toHaveBeenCalledTimes(1);
+    expect(t.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("a blocked remote stays out even if a new facade claims before re-registering", async () => {
+    const t = transitionSetup();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    t.wrapper.block("x" as never);
+    const { render } = renderer();
+    t.runtime.forRemote("react").claimSlot("header", render);
+    t.session.set(authed(2));
+    await t.wrapper.resume(ctx);
+    expect(render).not.toHaveBeenCalled();
+    expect(t.el.nodes).toEqual([]);
+  });
+
+  it("unregisterRemote during a transition; a late resume does not render", async () => {
+    const t = transitionSetup();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    t.runtime.unregisterRemote("react");
+    expect(code(() => t.shell.claimSlot("sidebar", renderer().render))).toBe("FACADE_REVOKED");
+    t.session.set(authed(2));
+    await t.wrapper.resume(ctx);
+    expect(t.render).toHaveBeenCalledTimes(1);
+    expect(t.el.nodes).toEqual([]);
+  });
+
+  it("a stale wrapper after re-register does not render the new mount's claims", async () => {
+    const t = transitionSetup();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    t.runtime.registerRemote("react", fakeLifecycle().lifecycle);
+    t.session.set(authed(2));
+    await t.wrapper.resume(ctx);
+    expect(t.render).toHaveBeenCalledTimes(1);
+  });
+
+  it("a stale wrapper's block or dispose does not revoke the new mount", () => {
+    const t = transitionSetup();
+    t.runtime.unregisterRemote("react");
+    const fresh = t.runtime.forRemote("react");
+    const next = fakeLifecycle();
+    t.runtime.registerRemote("react", next.lifecycle);
+    t.wrapper.block("x" as never);
+    t.wrapper.dispose();
+    expect(t.lifecycle.block).toHaveBeenCalledTimes(1);
+    expect(t.lifecycle.dispose).toHaveBeenCalledTimes(1);
+    expect(code(() => fresh.setLayout({ title: "new" }))).toBeUndefined();
+    expect(t.runtime.getView().layout?.title).toBe("new");
+  });
+
+  it("a transition ending in error leaves the slot empty, even when an element is re-attached", () => {
+    const t = transitionSetup();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    t.session.set({ status: "error", contextRevision: 2 } as SessionSnapshot);
+    expect(t.el.nodes).toEqual([]);
+    t.runtime.attachSlotElement("header", null);
+    t.runtime.attachSlotElement("header", fakeEl());
+    expect(t.render).toHaveBeenCalledTimes(1);
+  });
+
+  it("attaching an element or claiming during a transition does not render", async () => {
+    const t = transitionSetup();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    const el2 = fakeEl();
+    t.runtime.attachSlotElement("header", el2);
+    expect(t.render).toHaveBeenCalledTimes(1);
+    const side = fakeEl();
+    t.runtime.attachSlotElement("sidebar", side);
+    const { render } = renderer();
+    t.shell.claimSlot("sidebar", render);
+    expect(render).not.toHaveBeenCalled();
+    t.session.set(authed(2));
+    await t.wrapper.resume(ctx);
+    expect(el2.nodes).toEqual(["content"]);
+    expect(render).toHaveBeenCalledWith(side);
+  });
+
+  it("wrapper delegates prepareTransition, resetIdentityState and dispose; rejections propagate", async () => {
+    const t = transitionSetup();
+    await t.wrapper.prepareTransition(ctx);
+    await t.wrapper.resetIdentityState(ctx);
+    expect(t.lifecycle.prepareTransition).toHaveBeenCalledWith(ctx);
+    expect(t.lifecycle.resetIdentityState).toHaveBeenCalledWith(ctx);
+    const err = new Error("reset failed");
+    t.lifecycle.resetIdentityState.mockRejectedValueOnce(err);
+    await expect(t.wrapper.resetIdentityState(ctx)).rejects.toBe(err);
+    t.lifecycle.dispose.mockImplementation(() => {
+      expect(code(() => t.shell.setLayout({ title: "x" }))).toBe("FACADE_REVOKED");
+    });
+    t.wrapper.dispose();
+    expect(t.lifecycle.dispose).toHaveBeenCalledTimes(1);
+    expect(t.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("a rejected delegate resume propagates and does not render", async () => {
+    const t = transitionSetup();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    t.session.set(authed(2));
+    const err = new Error("resume failed");
+    t.lifecycle.resume.mockRejectedValueOnce(err);
+    await expect(t.wrapper.resume(ctx)).rejects.toBe(err);
+    expect(t.render).toHaveBeenCalledTimes(1);
+  });
+
+  it("navigate and setLanguage during a transition do not throw, re-render or touch contextRevision", () => {
+    const t = transitionSetup();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    expect(() => t.shell.navigate("/summary")).not.toThrow();
+    expect(() => t.shell.setLanguage("th")).not.toThrow();
+    expect(t.render).toHaveBeenCalledTimes(1);
+    expect(t.el.nodes).toEqual([]);
+    expect(t.session.api.getSnapshot().contextRevision).toBe(2);
   });
 });
