@@ -63,9 +63,15 @@ export const mount: RemoteMount = (element, capabilities): MountHandle => {
     releaseLayout?.();
     releaseLayout = tryShell(() => shell.setLayout(spec));
   };
+  /** Used from block/dispose: release functions only, and nothing may throw out of these lifecycle paths. */
   const releaseShell = () => {
-    tryShell(() => releaseLayout?.());
-    tryShell(() => releaseSlot?.());
+    for (const release of [releaseLayout, releaseSlot]) {
+      try {
+        release?.();
+      } catch (error) {
+        console.warn("[remote-react] shell release failed", error);
+      }
+    }
     releaseLayout = releaseSlot = undefined;
   };
 

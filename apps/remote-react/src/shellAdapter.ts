@@ -1,25 +1,41 @@
-import { useSyncExternalStore } from "react";
-import type { ShellApi, ShellState } from "@poc/platform-contracts";
+import { useCallback, useSyncExternalStore } from "react";
+import type { ShellApi, ShellCommandError, ShellState } from "@poc/platform-contracts";
 
-const noop = () => () => {};
 const none = () => null;
 
 /** Shell state via useSyncExternalStore; null when the shell capability is absent. */
 export function useShellState(shell: ShellApi | undefined): Readonly<ShellState> | null {
+  const subscribe = useCallback(
+    (onChange: () => void) => (shell ? shell.subscribe(onChange) : () => {}),
+    [shell],
+  );
   return useSyncExternalStore(
-    shell ? (onChange) => shell.subscribe(onChange) : noop,
+    subscribe,
     shell ? () => shell.getState() : none,
     shell ? () => shell.getState() : none,
   );
 }
 
-/** Runs a shell command; a revoked facade (after block or unmount) or rejected command is ignored. */
+/**
+ * Runs a shell command, ignoring only the expected refusals: FACADE_REVOKED (remote was blocked or
+ * unmounted) and SLOT_TAKEN (another remote holds the slot). Anything else, INVALID_* included, is a bug and rethrows.
+ */
 export function tryShell<T>(command: () => T): T | undefined {
   try {
     return command();
-  } catch {
-    return undefined;
+  } catch (error) {
+    const code = isShellCommandError(error) ? error.code : undefined;
+    if (code === "FACADE_REVOKED" || code === "SLOT_TAKEN") return undefined;
+    throw error;
   }
+}
+
+/**
+ * Structural check, not `instanceof`: @poc/platform-contracts is not in the federation shared scope,
+ * so the shell's ShellCommandError class is a different copy from the one bundled in this remote.
+ */
+function isShellCommandError(error: unknown): error is ShellCommandError {
+  return error instanceof Error && error.name === "ShellCommandError" && typeof (error as { code?: unknown }).code === "string";
 }
 
 /** `/orders/<id>` -> id, otherwise null. */
