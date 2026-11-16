@@ -50,7 +50,10 @@ type SlotClaim = {
   render: (el: HTMLElement) => () => void;
   cleanup?: () => void;
   rendered: boolean;
-  /** Set on `transitioning`; only that remote's wrapper `resume` clears it. A held claim never renders. */
+  /**
+   * Set on `transitioning`; only that remote's wrapper `resume` clears it. A held claim never renders.
+   * A claim from a facade whose remote never registered stays held until released or revoked (fails closed).
+   */
   held: boolean;
 };
 type FacadeToken = { revoked: boolean };
@@ -139,7 +142,8 @@ export function createShellCore(options: ShellRuntimeOptions) {
     if (matchRoute(path) === undefined) {
       throw new ShellCommandError("INVALID_PATH", `No route for path: ${path}`);
     }
-    patch({ path });
+    // ids in a path belong to the old account while transitioning: keep only the route root
+    patch({ path: transitioning ? matchRoute(path) : path });
   };
   const setLanguage = (code: Language) => patch({ language: assertLanguage(code) });
 
@@ -231,6 +235,8 @@ export function createShellCore(options: ShellRuntimeOptions) {
       setLayout(spec) {
         live();
         const entry: LayoutEntry = { spec: freezeLayout(validateLayoutSpec(spec)) };
+        // Old-context layout is dropped while transitioning; remotes re-send it in resume().
+        if (transitioning) return () => {};
         layouts.set(remoteId, entry);
         patch();
         return () => {

@@ -665,6 +665,61 @@ describe("transitions and lifecycle wrapper", () => {
     expect(t.runtime.getView().layout?.title).toBe("new");
   });
 
+  it("setLayout from a path listener during the transition is dropped; layout set in resume shows", async () => {
+    const t = transitionSetup();
+    t.shell.navigate("/orders/ord_1");
+    let lastPath = t.shell.getState().path;
+    t.shell.subscribe(() => {
+      const { path } = t.shell.getState();
+      if (path === lastPath) return;
+      lastPath = path;
+      t.shell.setLayout({ title: `Order ${path}` });
+    });
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    expect(t.runtime.getState().path).toBe("/orders");
+    expect(t.runtime.getView().layout).toBeNull();
+    expect(() => t.shell.setLayout({ title: "old" })()).not.toThrow();
+    expect(t.runtime.getView().layout).toBeNull();
+    expect(code(() => t.shell.setLayout({ title: 1 as never }))).toBe("INVALID_LAYOUT");
+    t.session.set(authed(2));
+    t.lifecycle.resume.mockImplementationOnce(async () => {
+      t.shell.setLayout({ title: "fresh" });
+    });
+    await t.wrapper.resume(ctx);
+    expect(t.runtime.getView().layout?.title).toBe("fresh");
+  });
+
+  it("facade navigate while transitioning keeps only the route root; language is unaffected", () => {
+    const t = transitionSetup();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    t.shell.navigate("/orders/ord_1");
+    expect(t.runtime.getState().path).toBe("/orders");
+    t.shell.navigate("/summary");
+    expect(t.runtime.getState().path).toBe("/summary");
+    expect(code(() => t.shell.navigate("/nope"))).toBe("INVALID_PATH");
+    t.shell.setLanguage("th");
+    expect(t.runtime.getState().language).toBe("th");
+    t.session.set(authed(2));
+    t.shell.navigate("/orders/ord_2");
+    expect(t.runtime.getState().path).toBe("/orders/ord_2");
+  });
+
+  it("remount (unregister, forRemote, then registerRemote) renders the new claim after resume", async () => {
+    const t = transitionSetup();
+    t.runtime.unregisterRemote("react");
+    const fresh = t.runtime.forRemote("react");
+    const next = fakeLifecycle();
+    const wrapper2 = t.runtime.registerRemote("react", next.lifecycle);
+    const { render } = renderer();
+    t.session.set({ status: "transitioning", contextRevision: 2 });
+    fresh.claimSlot("header", render);
+    t.session.set(authed(2));
+    await t.wrapper.resume(ctx);
+    expect(render).not.toHaveBeenCalled();
+    await wrapper2.resume(ctx);
+    expect(render).toHaveBeenCalledWith(t.el);
+  });
+
   it("a transition ending in error leaves the slot empty, even when an element is re-attached", () => {
     const t = transitionSetup();
     t.session.set({ status: "transitioning", contextRevision: 2 });
