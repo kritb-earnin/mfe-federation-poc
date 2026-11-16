@@ -11,6 +11,18 @@
 
 Module Federation remotes share the page realm. Capability injection does not sandbox untrusted code.
 
+## Slots are not isolated
+
+Shell slots (`header`, `sidebar`) hand the remote a plain DOM element in the same realm. There is no iframe, shadow DOM or CSS sandbox: a remote can touch anything reachable from its slot element (parents, siblings, global styles) and the shell only empties the element on release/transition.
+
+## ShellCommandError across bundles
+
+`@poc/platform-contracts` is not shared through Module Federation, so the shell and each remote bundle their own `ShellCommandError` class. `instanceof` fails across bundles; match `error.name === "ShellCommandError"` and `error.code`.
+
+## Hash history
+
+`ShellChrome` mirrors `path` into `location.hash` (a push per change) and navigates on `hashchange`. Browser Back/Forward can restore an earlier hash path, including an `/orders/<id>` from a previous account when no transition is running. Only the transition-start truncation to the route root protects against stale ids.
+
 ## SSR / native excluded
 
 Production SSR needs request-scoped session state. Native/WebView and cross-origin iframe messaging need adapters beyond this POC.
