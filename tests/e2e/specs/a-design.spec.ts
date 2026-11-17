@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { MockApiControls } from "@poc/test-support";
 import { ShellPage } from "../page-objects/ShellPage";
 
@@ -167,5 +167,142 @@ test.describe("shell-injected A: design system", () => {
     const before = await heading.textContent();
     await picker.selectOption("th");
     await expect(heading).not.toHaveText(before ?? "");
+
+    // Opposite direction: the picker is controlled by the shell, so a shell change moves it.
+    await shell.setLanguage("en");
+    await expect(picker).toHaveValue("en");
+    await shell.setLanguage("th");
+    await expect(picker).toHaveValue("th");
+  });
+
+  // Scenarios 20 to 26 exist; 27 to 29 below.
+  const paintOf = (page: Page) => {
+    const read = (loc: Locator) =>
+      loc.evaluate((el) => {
+        const s = getComputedStyle(el);
+        return { bg: s.backgroundColor, color: s.color };
+      });
+    return {
+      react: () => read(page.getByTestId("remote-root-react").locator("main")),
+      vue: () => read(page.getByTestId("remote-root-vue").locator("main")),
+      header: () => read(page.getByTestId("react-open-orders")),
+      sidebar: () => read(page.getByTestId("vue-sidebar-card")),
+    };
+  };
+
+  test("27 theme survives an account switch", async ({ page }) => {
+    const shell = new ShellPage(page);
+    await shell.login();
+    const html = page.locator("html");
+    const paint = paintOf(page);
+    const snap = async () => ({
+      react: await paint.react(),
+      vue: await paint.vue(),
+      header: await paint.header(),
+      sidebar: await paint.sidebar(),
+    });
+    await expect(page.getByTestId("vue-sidebar-card")).toBeVisible();
+    await expect(page.getByTestId("react-open-orders")).toBeVisible();
+
+    const light = await snap();
+    await page.getByTestId("theme-toggle").click();
+    await expect(html).toHaveClass(/\bdark\b/);
+    const dark = await snap();
+    // Non-vacuous: each surface really changes between light and dark (card/badge backgrounds), and
+    // every surface has a non-transparent background or a changed text colour.
+    expect(dark.header).not.toEqual(light.header);
+    expect(dark.sidebar).not.toEqual(light.sidebar);
+    expect(dark.react.color).not.toBe(light.react.color);
+    expect(dark.vue.color).not.toBe(light.vue.color);
+    expect(dark.sidebar.bg).not.toBe("rgba(0, 0, 0, 0)");
+
+    await shell.switchSouth();
+    await expect(shell.status()).toHaveText("authenticated");
+    await expect(shell.account()).toContainText("South");
+    await expect(shell.slot("sidebar").getByTestId("vue-sidebar-account")).toContainText("South");
+    await expect(shell.slot("header")).toContainText("Open orders");
+    await expect(html).toHaveClass(/\bdark\b/);
+    // Slots were cleared and re-rendered after resume: they must be painted with the dark tokens.
+    expect(await snap()).toEqual(dark);
+  });
+
+  test("28 theme survives forced cleanup failure and remount", async ({ page }) => {
+    const shell = new ShellPage(page);
+    await shell.login();
+    const html = page.locator("html");
+    await page.getByTestId("theme-toggle").click();
+    await expect(html).toHaveClass(/\bdark\b/);
+
+    await shell.setForceCleanupFail(true);
+    await shell.toggleReact();
+    await expect(shell.remoteStatus("react")).toHaveText("idle");
+    await shell.toggleReact();
+    await expect(shell.remoteStatus("react")).toHaveText("mounted");
+    await page.getByTestId("switch-south").click();
+    await expect(shell.status()).toHaveText("error");
+    await expect(html).toHaveClass(/\bdark\b/);
+
+    for (const id of ["react", "vue"] as const) {
+      const alert = shell.remoteRoot(id).getByRole("alert");
+      await expect(alert).toContainText(/paused/i);
+      const { bg, color } = await alert.evaluate((el) => {
+        const s = getComputedStyle(el);
+        return { bg: s.backgroundColor, color: s.color };
+      });
+      expect(bg, `${id} alert background is transparent`).not.toBe("rgba(0, 0, 0, 0)");
+      expect(color, `${id} alert text equals its background`).not.toBe(bg);
+    }
+
+    await shell.setForceCleanupFail(false);
+    await shell.toggleReact();
+    await expect(shell.remoteStatus("react")).toHaveText("idle");
+    await shell.toggleReact();
+    await expect(shell.remoteStatus("react")).toHaveText("mounted");
+    await expect(shell.remoteStatus("vue")).toHaveText("mounted");
+    await shell.login();
+    await expect(html).toHaveClass(/\bdark\b/);
+    await expect(shell.slot("header")).toContainText("Open orders");
+    const paint = paintOf(page);
+    const body = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    // Dark again after remount: the remote surfaces differ from the light-mode values.
+    await page.getByTestId("theme-toggle").click();
+    await expect(html).not.toHaveClass(/\bdark\b/);
+    const lightHeader = await paint.header();
+    const lightSidebar = await paint.sidebar();
+    await page.getByTestId("theme-toggle").click();
+    await expect(html).toHaveClass(/\bdark\b/);
+    expect(await paint.header()).not.toEqual(lightHeader);
+    expect(await paint.sidebar()).not.toEqual(lightSidebar);
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(body);
+  });
+
+  test("29 tokens agree across shell and remotes", async ({ page }) => {
+    const shell = new ShellPage(page);
+    await shell.login();
+    await expect(page.getByTestId("react-order-open-order_north_1")).toBeVisible();
+    await expect(page.getByTestId("vue-language-picker")).toBeVisible();
+    const style = (id: string, prop: "borderTopLeftRadius" | "fontFamily") =>
+      page.getByTestId(id).evaluate((el, p) => getComputedStyle(el)[p as "fontFamily"], prop);
+
+    const toggleRadius = await style("theme-toggle", "borderTopLeftRadius");
+    expect(toggleRadius).not.toBe("0px");
+    expect(await style("react-order-open-order_north_1", "borderTopLeftRadius")).toBe(toggleRadius);
+    const selectRadius = await style("language-select", "borderTopLeftRadius");
+    expect(selectRadius).not.toBe("0px");
+    expect(await style("vue-language-picker", "borderTopLeftRadius")).toBe(selectRadius);
+
+    // Font: remotes ship no preflight, so headings are not styled by tokens.css directly; they inherit
+    // the host's font. The host family must still be a real stack and every remote control must inherit.
+    const family = await style("shell-title", "fontFamily");
+    expect(family.length).toBeGreaterThan(0);
+    expect(await style("react-heading", "fontFamily")).toBe(family);
+    expect(await style("vue-heading", "fontFamily")).toBe(family);
+    for (const id of ["react-order-open-order_north_1", "vue-language-picker", "theme-toggle", "language-select"]) {
+      const own = await page.getByTestId(id).evaluate((el) => ({
+        own: getComputedStyle(el).fontFamily,
+        parent: getComputedStyle(el.parentElement!).fontFamily,
+      }));
+      expect(own.own, `${id} does not inherit its parent's font`).toBe(own.parent);
+    }
   });
 });
