@@ -105,6 +105,11 @@ describe("native elements", () => {
     const html = await render(Breadcrumb, { "data-testid": "bc" });
     expect(html).toMatch(/^<nav aria-label="breadcrumb"><ol[^>]*data-testid="bc"/);
   });
+  it("Breadcrumb aria-label lands on the nav, not the ol", async () => {
+    const html = await render(Breadcrumb, { "aria-label": "Breadcrumbs", "data-testid": "bc" });
+    expect(html).toMatch(/^<nav aria-label="Breadcrumbs"><ol[^>]*data-testid="bc"/);
+    expect(html.match(/aria-label/g)).toHaveLength(1);
+  });
 });
 
 describe("tokens and a11y", () => {

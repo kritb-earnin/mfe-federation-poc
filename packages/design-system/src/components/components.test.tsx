@@ -51,6 +51,13 @@ describe("components", () => {
     // Breadcrumb wraps the <ol> in a <nav>; ref lands on the <ol>
     expect(((Breadcrumb as any)({ ref }) as any).props.children.props.ref).toBe(ref);
   });
+  it("Breadcrumb aria-label lands on the nav (default breadcrumb), not the ol", () => {
+    const def = renderToString(h(Breadcrumb, { id: "x" }));
+    expect(def).toMatch(/^<nav aria-label="breadcrumb"><ol[^>]*id="x"/);
+    const out = renderToString(h(Breadcrumb, { "aria-label": "Breadcrumbs" }));
+    expect(out).toMatch(/^<nav aria-label="Breadcrumbs"><ol/);
+    expect(out.match(/aria-label/g)).toHaveLength(1);
+  });
   it("NativeSelect renders a select with children", () => {
     const out = renderToString(h(NativeSelect, null, h("option", { value: "a" }, "A")));
     expect(out.startsWith("<select")).toBe(true);

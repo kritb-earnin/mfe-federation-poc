@@ -60,8 +60,8 @@ The shell's `theme-toggle` adds or removes the `dark` class on `<html>` (in memo
 
 ## Guards
 
-- `pnpm --filter <app> check:css` (run after `pnpm build`; it reads `dist`): `check-built-css.mjs`.
+- `pnpm check:css` (root; all apps; last step of `pnpm ci`) or `pnpm --filter <app> check:css` (run after `pnpm build`; it reads `dist`): `check-built-css.mjs`.
   - Shell mode: token values, dark tokens, preflight, a utility, and classes from `packages/design-system` and `packages/shell-ui` compiled.
-  - `--remote <class>...` mode: reads only the CSS listed for `./mount` in `mf-manifest.json`. Asserts utilities and `var(--)` references, no token declaration, no raw colour literal (engine-internal `@property` and `@supports` blocks are stripped first), no preflight, each `<class>` compiled, and a non-empty CSS list.
+  - `--remote <class>...` mode: reads only the CSS listed for `./mount` in `mf-manifest.json`. Asserts utilities, a design-system class (`.outline-hidden`, proving `remote.css`'s `@source` still covers `packages/design-system`, which the shell's same-realm CSS would otherwise mask), `var(--)` references, no token declaration, no raw colour literal (engine-internal `@property` and `@supports` blocks are stripped first), no preflight, each `<class>` compiled, and a non-empty CSS list.
 - `pnpm --filter @poc/shell-ui check:styles`: fails on any inline `style` in shell-ui source. Also runs as part of that package's `typecheck`.
-- Compiled-output and token tests: `packages/design-system/src/tokens.test.ts` (no literals in `theme.css`/`remote.css`, compiled `remote.css` has no literal or token declaration, the script's regexes match the test's), `components.test.tsx` (React) and `components.test.ts` (Vue).
+- Compiled-output and token tests: `packages/design-system/src/tokens.test.ts` (no literals in `theme.css`/`remote.css`; every `var(--x)` mapped in `theme.css` is declared in `tokens.css` under `:root` and `.dark`; compiled `remote.css`, built against design-system sources only, has no literal and no preflight; the script's regexes match the test's). Token-declaration absence in remotes' real bundles, and remotes' own sources, are covered only by `check:css`, `components.test.tsx` (React) and `components.test.ts` (Vue).

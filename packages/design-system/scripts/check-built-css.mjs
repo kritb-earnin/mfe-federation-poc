@@ -4,7 +4,7 @@
 // Shell: asserts the build emitted the design-system CSS: token values, dark tokens, preflight,
 // a utility, a class used only in packages/design-system (its @source) and one used only in
 // packages/shell-ui (the shell's @source).
-// Remote: asserts utilities and var(--…) references, no token value, no raw colour literal outside
+// Remote: asserts utilities, the design-system class (.outline-hidden) and var(--…) references, no token value, no raw colour literal outside
 // Tailwind's engine internals, no preflight, and each <class> (used only in sources the remote's
 // @source must cover) compiled.
 import { readdirSync, readFileSync } from "node:fs";
@@ -51,6 +51,9 @@ const checks = mode
   ? [
       ["utility rule (.text-foreground{color:var(--…))", has(/\.text-foreground\s*\{\s*color:\s*var\(--/)],
       ["var(--…) references", has("var(--")],
+      // Proves remote.css's @source still covers packages/design-system: the shell's same-realm CSS
+      // would otherwise mask a remote that silently lost the component classes.
+      ["design-system class (.outline-hidden)", has(/\.outline-hidden\s*\{/)],
       ...tokenNames.map((n) => [`no token declaration ${n}:`, !new RegExp(`(^|[^\\w-])${n}\\s*:`).test(css)]),
       ["no raw colour literal (outside @property / @supports internals)", !LITERAL.test(engineInternals(css))],
       ["no preflight (-webkit-text-size-adjust)", !has("-webkit-text-size-adjust")],

@@ -96,7 +96,7 @@ export function ShellChrome({ runtime, onEvent, brand, children }: Props) {
           <h2 data-testid="shell-title" className="m-0 text-lg font-semibold">
             {layout?.title ?? ""}
           </h2>
-          <Breadcrumb data-testid="shell-breadcrumbs">
+          <Breadcrumb aria-label="Breadcrumbs" data-testid="shell-breadcrumbs">
             {layout?.breadcrumbs?.map((crumb, i) => (
               <BreadcrumbItem key={i}>
                 {crumb.path === undefined ? (

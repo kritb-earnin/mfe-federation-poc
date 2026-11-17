@@ -21,7 +21,31 @@ const block = (s: string, sel: string) => {
   return i < 0 ? "" : s.slice(i, s.indexOf("}", i));
 };
 
+// Every var(--x) the @theme inline mapping reads must have a value in tokens.css: under :root, and
+// under .dark too, except --radius (not themed per scheme). Derived from theme.css so a new mapping
+// without a value fails; the TOKENS list below stays as an independent check that the mapping lists all.
+const missingTokens = (theme: string, tokens: string) => {
+  const names = [...new Set([...theme.matchAll(/var\(--([\w-]+)\)/g)].map((m) => m[1]))];
+  return names.flatMap((n) =>
+    [":root", ...(n === "radius" ? [] : [".dark"])]
+      .filter((sel) => !new RegExp(`--${n}:`).test(block(tokens, sel)))
+      .map((sel) => `${sel} --${n}`),
+  );
+};
+
 describe("tokens.css", () => {
+  it("declares every var() that theme.css maps (derived from theme.css)", () => {
+    expect(missingTokens(stripComments(css("theme.css")), css("tokens.css"))).toEqual([]);
+  });
+  it("missingTokens detects an undeclared var in a fixture", () => {
+    const tokens = ":root { --a: 1; --radius: 1; }\n.dark { --a: 2; }";
+    expect(missingTokens("@theme inline { --color-a: var(--a); --radius-md: calc(var(--radius) - 2px); }", tokens)).toEqual([]);
+    expect(missingTokens("@theme inline { --color-info: var(--info); --color-a: var(--a); }", tokens)).toEqual([
+      ":root --info",
+      ".dark --info",
+    ]);
+    expect(missingTokens("@theme inline { --color-a: var(--a); }", ":root { --a: 1; }")).toEqual([".dark --a"]);
+  });
   const t = css("tokens.css");
   it("colour-literal regex fires on tokens.css", () => {
     expect(t).toMatch(LITERAL);
