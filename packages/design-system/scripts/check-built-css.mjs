@@ -16,16 +16,17 @@ const css = readdirSync(dist, { recursive: true })
 
 const required = {
   "token values (--primary:)": "--primary:",
-  "dark tokens (.dark)": ".dark",
+  "dark token values (.dark { --primary: })": /\.dark\s*\{[^}]*--primary:/,
   "preflight (-webkit-text-size-adjust)": "-webkit-text-size-adjust",
   "utility (.bg-primary)": ".bg-primary",
   "design-system-only class (.outline-hidden)": ".outline-hidden",
   "shell-ui-only class (.antialiased)": ".antialiased",
 };
 
-const missing = Object.entries(required).filter(([, s]) => !css.includes(s));
+const has = (s) => (s instanceof RegExp ? s.test(css) : css.includes(s));
+const missing = Object.entries(required).filter(([, s]) => !has(s));
 for (const [label, s] of Object.entries(required)) {
-  console.log(`${css.includes(s) ? "ok  " : "MISS"} ${label}`);
+  console.log(`${has(s) ? "ok  " : "MISS"} ${label}`);
 }
 if (missing.length) {
   console.error(`check:css FAILED in ${dist}: ${missing.map(([l]) => l).join(", ")}`);
