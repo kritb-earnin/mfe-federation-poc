@@ -24,7 +24,7 @@ const { summary, error, loading } = useAccountSummary(snapshot, () => props.clie
 </script>
 
 <template>
-  <main class="text-foreground tabular-nums">
+  <main class="text-foreground slashed-zero">
     <p v-if="blocked" role="alert">Remote paused: {{ blocked.message }}</p>
     <template v-else>
       <h1 data-testid="vue-heading">{{ t(lang, "heading") }}</h1>

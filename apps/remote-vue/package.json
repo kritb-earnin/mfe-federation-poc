@@ -7,7 +7,7 @@
     "dev": "rsbuild dev",
     "build": "rsbuild build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "check:css": "node ../../packages/design-system/scripts/check-built-css.mjs dist --remote .tabular-nums"
+    "check:css": "node ../../packages/design-system/scripts/check-built-css.mjs dist --remote .slashed-zero"
   },
   "dependencies": {
     "@apollo/client": "^4.0.0",

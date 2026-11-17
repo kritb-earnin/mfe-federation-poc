@@ -25,14 +25,16 @@ test.describe("shell-injected A: design system", () => {
     const shell = new ShellPage(page);
     await shell.login();
     const expected = await foreground(page);
+    // The colour alone is not proof: <main> inherits body's `color: var(--foreground)` and the shell
+    // also compiles .text-foreground. Each remote also carries a class used in no other source
+    // (shell, other remote, component packages), so only that remote's own CSS defines it; remote CSS
+    // is global, so the classes must differ or one remote's CSS would satisfy both assertions.
+    const discriminator = { react: "tabular-nums", vue: "slashed-zero" } as const;
     for (const id of ["react", "vue"] as const) {
       const root = shell.remoteRoot(id).locator("main.text-foreground");
       await expect(root).toBeVisible();
       await expect(root).toHaveCSS("color", expected);
-      // The colour alone is not proof: <main> inherits body's `color: var(--foreground)` and the shell
-      // also compiles .text-foreground. Only the remote's own CSS defines .tabular-nums (used in no
-      // shell source), so this fails unless the shell actually loaded the remote's stylesheet.
-      await expect(root).toHaveCSS("font-variant-numeric", "tabular-nums");
+      await expect(root, `${id} remote CSS not loaded`).toHaveCSS("font-variant-numeric", discriminator[id]);
     }
   });
 });

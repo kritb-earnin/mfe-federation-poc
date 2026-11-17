@@ -62,6 +62,15 @@ describe("theme.css / remote.css", () => {
   });
 });
 
+describe("scripts/check-built-css.mjs", () => {
+  it("uses the same colour-literal regex and engine-internals stripping as this file", () => {
+    const script = readFileSync(new URL("../scripts/check-built-css.mjs", import.meta.url), "utf8");
+    expect(script).toContain(LITERAL.toString());
+    for (const re of [/@property[^{]*\{[^}]*\}/g, /@supports[^{]*\{\s*\*[^{]*\{[^}]*\}\s*\}/g])
+      expect(script).toContain(`.replace(${re.toString()}, "")`);
+  });
+});
+
 describe("cn", () => {
   it("merges conflicting classes", () => {
     expect(cn("p-2", false, "p-4")).toBe("p-4");
