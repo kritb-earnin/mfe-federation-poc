@@ -1,4 +1,7 @@
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import postcss from "postcss";
+import tailwind from "@tailwindcss/postcss";
 import { describe, expect, it } from "vitest";
 import { cn } from "./lib/utils";
 
@@ -10,7 +13,8 @@ const TOKENS = [
   "muted-foreground", "accent", "accent-foreground", "destructive", "destructive-foreground",
   "warning", "warning-foreground", "border", "input", "ring",
 ];
-const LITERAL = /#[0-9a-fA-F]{3,8}\b|\b(rgb|rgba|hsl|hsla|oklch|oklab|lab|lch)\(/;
+const LITERAL =
+  /#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?|oklch|oklab|lab|lch|hwb|color)\(|color-mix\([^)]*(#|\b(rgba?|hsla?|oklch|oklab|lab|lch|hwb)\()|:[^;{}]*\b(white|black|red|blue|transparent)\b\s*[;}]/;
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "");
 const block = (s: string, sel: string) => {
   const i = s.indexOf(sel + " {");
@@ -19,10 +23,15 @@ const block = (s: string, sel: string) => {
 
 describe("tokens.css", () => {
   const t = css("tokens.css");
+  it("colour-literal regex fires on tokens.css", () => {
+    expect(t).toMatch(LITERAL);
+    expect("a { color: white; }").toMatch(LITERAL);
+    expect("a { x: color-mix(in oklab, #fff 10%, red); }").toMatch(LITERAL);
+  });
   for (const sel of [":root", ".dark"]) {
     it(`declares every token and radius under ${sel}`, () => {
       const b = block(t, sel);
-      for (const n of TOKENS) expect(b, n).toMatch(new RegExp(`--${n}:`));
+      for (const n of [...TOKENS, "shadow-color"]) expect(b, n).toMatch(new RegExp(`--${n}:`));
       if (sel === ":root") expect(b).toMatch(/--radius:/);
     });
   }
@@ -54,5 +63,47 @@ describe("theme.css / remote.css", () => {
 describe("cn", () => {
   it("merges conflicting classes", () => {
     expect(cn("p-2", false, "p-4")).toBe("p-4");
+  });
+});
+
+const dir = fileURLToPath(new URL("./", import.meta.url));
+const FIXTURE =
+  "shadow-xs shadow-sm shadow-md bg-primary bg-card text-foreground border ring-1 ring-ring rounded-md bg-white text-black shadow-2xl drop-shadow-md";
+// Tailwind's own `@property` initial values and its old-browser `@supports` fallback hold `#0000`
+// (transparent zero shadows) and `#fff` (ring-offset-color, unused at 0 offset). They are engine
+// internals, not theme colours, so they are excluded from the literal check.
+const engineInternals = (css: string) =>
+  css
+    .replace(/@property[^{]*\{[^}]*\}/g, "")
+    .replace(/@supports[^{]*\{\s*\*[^{]*\{[^}]*\}\s*\}/g, "");
+const compile = async (entry: string, inline = "") => {
+  const from = dir + "__fixture.css";
+  const src = `@import "./${entry}";\n${inline ? `@source inline("${inline}");` : ""}`;
+  return (await postcss([tailwind()]).process(src, { from })).css;
+};
+
+describe("compiled output", () => {
+  it("remote.css emits no colour literals or preflight, and uses variables", async () => {
+    const out = await compile("remote.css", FIXTURE);
+    expect(out).toContain(".shadow-sm");
+    expect(out).toContain(".shadow-xs");
+    expect(out).toContain(".ring-ring");
+    expect(out).toContain(".text-foreground");
+    expect(out).toMatch(/\.bg-primary\s*{\s*background-color:\s*var\(--primary\)/);
+    expect(engineInternals(out)).not.toMatch(LITERAL);
+    expect(out).not.toContain("box-sizing: border-box");
+  });
+  it("shell.css emits token values and preflight (proves the checks fire)", async () => {
+    const out = await compile("shell.css", FIXTURE);
+    expect(out).toMatch(/oklch\(/);
+    expect(out).toMatch(LITERAL);
+    expect(out).toContain("box-sizing: border-box");
+  });
+  it("entries do not pick up stray utilities from test files", async () => {
+    for (const e of ["remote.css", "shell.css"]) {
+      const out = await compile(e);
+      for (const c of [".block", ".border", ".ring", ".p-2", ".p-4"])
+        expect(out, `${e} ${c}`).not.toMatch(new RegExp(`${c.replace(".", "\\.")}\\s*{`));
+    }
   });
 });

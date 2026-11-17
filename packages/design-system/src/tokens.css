@@ -26,6 +26,7 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+  --shadow-color: oklch(0 0 0 / 10%);
 }
 
 .dark {
@@ -50,4 +51,5 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+  --shadow-color: oklch(0 0 0 / 40%);
 }

@@ -13,6 +13,7 @@
 @import "./tokens.css";
 
 @source "./**/*.{ts,tsx}";
+@source not "./**/*.test.{ts,tsx}";
 
 @layer base {
   * {
