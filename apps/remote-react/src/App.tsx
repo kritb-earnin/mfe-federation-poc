@@ -25,7 +25,7 @@ export function App({ session, shell, blocked, localFeature, setLocalFeature }: 
 
   if (blocked) {
     return (
-      <main>
+      <main className="text-foreground tabular-nums">
         <p role="alert">Remote paused: {blocked.message}</p>
       </main>
     );
@@ -34,7 +34,7 @@ export function App({ session, shell, blocked, localFeature, setLocalFeature }: 
   const detail = detailId ? ordersQuery.data?.find((order) => order.id === detailId) : undefined;
 
   return (
-    <main>
+    <main className="text-foreground tabular-nums">
       <h1 data-testid="react-heading">{t(lang, "Fictional React Orders")}</h1>
       {shell ? (
         <small data-testid="react-shell-user">
