@@ -20,6 +20,8 @@ export function EventLog({ events, onClear }: Props) {
       <CardContent className="flex flex-col gap-2">
         <ol
           data-testid="event-log"
+          tabIndex={0}
+          aria-label="Events"
           className="m-0 max-h-56 list-none overflow-auto rounded-md border border-solid border-border bg-muted p-2 font-mono text-xs text-foreground"
         >
           {events.length === 0 ? <li className="text-muted-foreground">No events yet.</li> : null}

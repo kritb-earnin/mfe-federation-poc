@@ -125,6 +125,10 @@ describe("tokens and a11y", () => {
   ])("Button %s has base %s", async (v, token) => {
     expect(hasToken(await render(Button, { variant: v }), token)).toBe(true);
   });
+  it("Button defaults type=button and an explicit type wins", async () => {
+    expect(await render(Button)).toContain('type="button"');
+    expect(await render(Button, { type: "submit" })).toContain('type="submit"');
+  });
   it("Button sm size applies", async () => {
     expect(await render(Button, { size: "sm" })).toContain("h-8");
   });

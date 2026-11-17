@@ -19,6 +19,10 @@ describe("components", () => {
       expect(out).toContain("custom-cls");
     });
   }
+  it("Button defaults type=button and an explicit type wins", () => {
+    expect(renderToString(h(Button))).toContain('type="button"');
+    expect(renderToString(h(Button, { type: "submit" }))).toContain('type="submit"');
+  });
   it("Button and NavLink reset browser-default border and background (no preflight in remotes)", () => {
     for (const out of [
       renderToString(h(Button, { variant: "ghost" })),

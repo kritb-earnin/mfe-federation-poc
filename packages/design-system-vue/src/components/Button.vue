@@ -10,5 +10,5 @@ const props = defineProps<{
 </script>
 
 <template>
-  <button v-bind="mergeAttrs($attrs, buttonVariants({ variant: props.variant, size: props.size }))"><slot /></button>
+  <button type="button" v-bind="mergeAttrs($attrs, buttonVariants({ variant: props.variant, size: props.size }))"><slot /></button>
 </template>
