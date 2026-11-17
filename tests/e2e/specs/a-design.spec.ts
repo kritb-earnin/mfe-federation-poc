@@ -95,4 +95,40 @@ test.describe("shell-injected A: design system", () => {
     expect(dark.border).not.toBe(light.border);
     expect(dark.bg).not.toBe(light.bg);
   });
+  // Scenarios 20 to 24 exist; 25 is the next free number.
+  test("25 react remote uses design-system tokens", async ({ page }) => {
+    const shell = new ShellPage(page);
+    await shell.login();
+    const open = page.getByTestId("react-order-open-order_north_1");
+    const badge = page.getByTestId("react-open-orders");
+    await expect(open).toBeVisible();
+    await expect(badge).toBeVisible();
+
+    // Same variant and size as theme-toggle (outline + sm), so the radius and font size must match.
+    const metrics = (id: string) =>
+      page.getByTestId(id).evaluate((el) => {
+        const s = getComputedStyle(el);
+        return { radius: s.borderTopLeftRadius, fontSize: s.fontSize };
+      });
+    const reference = await metrics("theme-toggle");
+    expect(reference.radius).not.toBe("0px");
+    expect(await metrics("react-order-open-order_north_1")).toEqual(reference);
+
+    const paint = () =>
+      badge.evaluate((el) => {
+        const s = getComputedStyle(el);
+        return { bg: s.backgroundColor, color: s.color };
+      });
+    const light = await paint();
+    expect(light.bg).not.toBe("rgba(0, 0, 0, 0)");
+
+    await page.getByTestId("theme-toggle").click();
+    await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+    const dark = await paint();
+    expect(dark.bg !== light.bg || dark.color !== light.color).toBe(true);
+
+    await page.getByTestId("theme-toggle").click();
+    await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+    expect(await paint()).toEqual(light);
+  });
 });

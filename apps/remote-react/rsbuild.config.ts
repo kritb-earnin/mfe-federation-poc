@@ -8,6 +8,8 @@ export default defineConfig({
   plugins: [pluginModuleFederation(mfConfig)],
   source: { entry: { index: "./src/bootstrap.tsx" } },
   tools: {
+    // Design-system components are compiled from source and rely on the automatic JSX runtime.
+    swc: { jsc: { transform: { react: { runtime: "automatic" } } } },
     postcss: (_, { addPlugins }) => {
       addPlugins(tailwindcss());
     },
