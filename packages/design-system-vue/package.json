@@ -16,6 +16,8 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@vitejs/plugin-vue": "^6.0.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
     "typescript": "5.9.3",
     "vitest": "5.1.0",
     "vue": "^3.5.0",

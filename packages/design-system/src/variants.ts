@@ -1,8 +1,6 @@
 // Framework-neutral class definitions shared by the React and Vue components.
 import { cva } from "class-variance-authority";
 
-export { cn } from "./lib/utils";
-
 export const alertVariants = cva("relative box-border w-full rounded-lg border border-solid px-4 py-3 text-sm", {
   variants: {
     variant: {

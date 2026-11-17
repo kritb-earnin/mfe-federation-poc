@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { h, type Component } from "vue";
 import { renderToString } from "vue/server-renderer";
+import type { VariantProps } from "class-variance-authority";
 import { cn } from "@poc/design-system/utils";
 import {
   alertVariants,
@@ -71,12 +72,28 @@ describe("attribute inheritance", () => {
 });
 
 describe("native elements", () => {
-  it("NativeSelect is a real <select> with options and passes value/onChange attrs", async () => {
+  it("NativeSelect is a real <select> that keeps options, value, disabled and data-testid", async () => {
     const html = await renderToString(
-      h(NativeSelect, { value: "b", "data-testid": "s" }, { default: () => [h("option", { value: "a" }, "A"), h("option", { value: "b" }, "B")] }),
+      h(
+        NativeSelect,
+        { value: "b", disabled: true, "data-testid": "s" },
+        { default: () => [h("option", { value: "a" }, "A"), h("option", { value: "b" }, "B")] },
+      ),
     );
     expect(html.startsWith("<select")).toBe(true);
+    expect(html).toContain('data-testid="s"');
+    expect(html).toContain("disabled");
     expect(html).toContain('<option value="a">A</option>');
+    expect(html).toMatch(/<option value="b"[^>]*>B<\/option>/);
+    expect(html).toMatch(/^<select[^>]*value="b"/);
+  });
+  it.each([
+    ["Input", Input],
+    ["NativeSelect", NativeSelect],
+    ["Checkbox", Checkbox],
+  ] as [string, Component][])("%s drops v-model attrs (unsupported) instead of leaking modelvalue", async (_n, c) => {
+    const html = await render(c, { modelValue: "x", "onUpdate:modelValue": () => {} });
+    expect(html.toLowerCase()).not.toContain("modelvalue");
   });
   it("Checkbox renders type=checkbox", async () => {
     expect(await render(Checkbox)).toContain('type="checkbox"');
@@ -99,9 +116,14 @@ describe("tokens and a11y", () => {
     expect(hasToken(x, "bg-destructive")).toBe(true);
     expect(hasToken(x, "bg-primary")).toBe(false);
   });
-  it.each(["default", "secondary", "outline", "ghost", "destructive"])("Button %s has a base text-* token", async (v) => {
-    const html = await render(Button, { variant: v });
-    expect(html).toMatch(/(^|[ "])text-(primary-foreground|secondary-foreground|foreground|destructive-foreground)[ "]/);
+  it.each([
+    ["default", "text-primary-foreground"],
+    ["secondary", "text-secondary-foreground"],
+    ["outline", "text-foreground"],
+    ["ghost", "text-foreground"],
+    ["destructive", "text-destructive-foreground"],
+  ])("Button %s has base %s", async (v, token) => {
+    expect(hasToken(await render(Button, { variant: v }), token)).toBe(true);
   });
   it("Button sm size applies", async () => {
     expect(await render(Button, { size: "sm" })).toContain("h-8");
@@ -144,4 +166,38 @@ describe("parity with shared class strings", () => {
   it.each(cases)("%s renders the shared class string", async (_n, c, props, shared) => {
     expect(await render(c, props)).toContain(`class="${esc(cn(shared))}"`); // React renders cn(shared) too (twMerge drops overridden bg-transparent)
   });
+
+  const buttonVariantKeys = ["default", "secondary", "outline", "ghost", "destructive"] as const;
+  const buttonSizeKeys = ["default", "sm"] as const;
+  const badgeKeys = ["default", "secondary", "outline", "warning", "destructive"] as const;
+  const alertKeys = ["default", "warning", "destructive"] as const;
+  const every: [string, Component, Record<string, unknown>, string][] = [
+    ...buttonVariantKeys.flatMap((variant) =>
+      buttonSizeKeys.map((size): [string, Component, Record<string, unknown>, string] => [
+        `Button ${variant}/${size}`, Button, { variant, size }, buttonVariants({ variant, size }),
+      ]),
+    ),
+    ...badgeKeys.map((variant): [string, Component, Record<string, unknown>, string] => [
+      `Badge ${variant}`, Badge, { variant }, badgeVariants({ variant }),
+    ]),
+    ...alertKeys.map((variant): [string, Component, Record<string, unknown>, string] => [
+      `Alert ${variant}`, Alert, { variant }, alertVariants({ variant }),
+    ]),
+  ];
+  it.each(every)("%s matches the shared variant class string", async (_n, c, props, shared) => {
+    expect(await render(c, props)).toContain(`class="${esc(cn(shared))}"`);
+  });
 });
+
+// Compile-time drift guard (checked by vue-tsc): Vue prop unions must equal the cva variant keys.
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+type Prop<C extends abstract new (...a: never) => { $props: object }, K extends string> = NonNullable<
+  (InstanceType<C>["$props"] & Record<K, unknown>)[K]
+>;
+const _typeDrift: [
+  Equal<Prop<typeof Button, "variant">, NonNullable<VariantProps<typeof buttonVariants>["variant"]>>,
+  Equal<Prop<typeof Button, "size">, NonNullable<VariantProps<typeof buttonVariants>["size"]>>,
+  Equal<Prop<typeof Badge, "variant">, NonNullable<VariantProps<typeof badgeVariants>["variant"]>>,
+  Equal<Prop<typeof Alert, "variant">, NonNullable<VariantProps<typeof alertVariants>["variant"]>>,
+] = [true, true, true, true];
+void _typeDrift;
