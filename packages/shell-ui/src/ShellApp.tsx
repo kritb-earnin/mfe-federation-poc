@@ -74,7 +74,7 @@ export function ShellApp({
   };
 
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: 16, display: "grid", gap: 16 }}>
+    <main className="antialiased" style={{ fontFamily: "system-ui, sans-serif", padding: 16, display: "grid", gap: 16 }}>
       <header>
         <p style={{ margin: 0, color: "#64748b" }}>DI mode {diMode} · fictional POC data only</p>
         <h1 style={{ margin: "4px 0" }}>{title}</h1>
