@@ -37,4 +37,31 @@ test.describe("shell-injected A: design system", () => {
       await expect(root, `${id} remote CSS not loaded`).toHaveCSS("font-variant-numeric", discriminator[id]);
     }
   });
+
+  test("22 theme toggle switches the shell to dark", async ({ page }) => {
+    const toggle = page.getByTestId("theme-toggle");
+    const html = page.locator("html");
+    const bodyBg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+
+    await expect(html).not.toHaveClass(/\bdark\b/);
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    const light = await bodyBg();
+
+    await toggle.click();
+    await expect(html).toHaveClass(/\bdark\b/);
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(await bodyBg()).not.toBe(light);
+
+    await toggle.click();
+    await expect(html).not.toHaveClass(/\bdark\b/);
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(await bodyBg()).toBe(light);
+  });
+
+  test("23 shell chrome keeps native controls", async ({ page }) => {
+    const shell = new ShellPage(page);
+    expect(await shell.languageSelect().evaluate((el) => el.tagName)).toBe("SELECT");
+    await shell.setLanguage("th");
+    await expect(shell.languageSelect()).toHaveValue("th");
+  });
 });
