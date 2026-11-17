@@ -64,4 +64,35 @@ test.describe("shell-injected A: design system", () => {
     await shell.setLanguage("th");
     await expect(shell.languageSelect()).toHaveValue("th");
   });
+  // Scenarios 20, 22 and 23 exist; 24 is the next free number.
+  test("24 force-cleanup-fail is still a checkbox and panels follow the theme", async ({ page }) => {
+    const box = page.getByTestId("force-cleanup-fail");
+    await expect(box).toHaveJSProperty("tagName", "INPUT");
+    await expect(box).toHaveAttribute("type", "checkbox");
+    expect(await box.isChecked()).toBe(false);
+    await box.click();
+    expect(await box.isChecked()).toBe(true);
+    await box.click();
+    expect(await box.isChecked()).toBe(false);
+
+    // Card look = same border and background as the (already themed) remote host card.
+    const look = (id: string) =>
+      page.getByTestId(id).evaluate((el) => {
+        const s = getComputedStyle(el);
+        return { border: s.borderTopColor, bg: s.backgroundColor };
+      });
+    const panel = () => look("session-panel");
+    const reference = () => look("remote-host-react");
+
+    const light = await panel();
+    expect(light).toEqual(await reference());
+    expect(light.bg).not.toBe("rgba(0, 0, 0, 0)");
+
+    await page.getByTestId("theme-toggle").click();
+    await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+    const dark = await panel();
+    expect(dark).toEqual(await reference());
+    expect(dark.border).not.toBe(light.border);
+    expect(dark.bg).not.toBe(light.bg);
+  });
 });
