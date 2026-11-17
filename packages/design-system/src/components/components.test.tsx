@@ -30,6 +30,14 @@ describe("components", () => {
     }
     expect(renderToString(h(Button, { variant: "outline" }))).toMatch(/[ "]border[ "].*border-border/);
   });
+  it("every Button variant and NavLink state has an explicit base text token (buttons do not inherit colour)", () => {
+    const base = /(^|[ "])text-(foreground|primary-foreground|secondary-foreground|destructive-foreground|muted-foreground)[ "]/;
+    for (const v of ["default", "secondary", "outline", "ghost", "destructive"] as const)
+      expect(renderToString(h(Button, { variant: v })), v).toMatch(base);
+    expect(renderToString(h(NavLink, { active: true }, "x"))).toMatch(/[ "]text-accent-foreground[ "]/);
+    expect(renderToString(h(NavLink, null, "x"))).toMatch(/[ "]text-muted-foreground[ "]/);
+    expect(renderToString(h(NativeSelect))).toMatch(/[ "]pr-8[ "]/);
+  });
   it("forwards ref to the rendered element (React 19 ref prop)", () => {
     const ref = () => {};
     for (const C of [Button, Input, NativeSelect, Checkbox, Card, Badge, Alert, NavLink, DefinitionList] as ComponentType<any>[]) {

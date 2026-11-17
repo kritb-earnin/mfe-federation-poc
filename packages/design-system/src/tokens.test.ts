@@ -26,7 +26,8 @@ describe("tokens.css", () => {
   it("colour-literal regex fires on tokens.css", () => {
     expect(t).toMatch(LITERAL);
     expect("a { color: white; }").toMatch(LITERAL);
-    expect("a { color: transparent; }").not.toMatch(LITERAL); // keyword, not a theme colour
+    // transparent is a keyword, not a theme colour
+    expect("a { color: transparent; }").not.toMatch(LITERAL);
     expect("a { x: color-mix(in oklab, #fff 10%, red); }").toMatch(LITERAL);
   });
   for (const sel of [":root", ".dark"]) {
