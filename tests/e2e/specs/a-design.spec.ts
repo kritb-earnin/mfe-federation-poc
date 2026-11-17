@@ -131,4 +131,41 @@ test.describe("shell-injected A: design system", () => {
     await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
     expect(await paint()).toEqual(light);
   });
+
+  // Scenarios 20 to 25 exist; 26 is the next free number.
+  test("26 vue remote follows the shell theme and tokens", async ({ page }) => {
+    const shell = new ShellPage(page);
+    await shell.login();
+    const sidebar = page.getByTestId("vue-sidebar-card");
+    const summary = page.getByTestId("vue-summary");
+    await expect(sidebar).toBeVisible();
+    await expect(summary).toBeVisible();
+
+    const bg = (loc: typeof sidebar) => loc.evaluate((el) => getComputedStyle(el).backgroundColor);
+    const light = { sidebar: await bg(sidebar), summary: await bg(summary) };
+    expect(light.sidebar).not.toBe("rgba(0, 0, 0, 0)");
+    expect(light.summary).not.toBe("rgba(0, 0, 0, 0)");
+
+    await page.getByTestId("theme-toggle").click();
+    await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+    expect(await bg(sidebar)).not.toBe(light.sidebar);
+    expect(await bg(summary)).not.toBe(light.summary);
+
+    await page.getByTestId("theme-toggle").click();
+    await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+    expect(await bg(sidebar)).toBe(light.sidebar);
+    expect(await bg(summary)).toBe(light.summary);
+
+    // Same NativeSelect look as the shell's language select, and it still works.
+    const picker = page.getByTestId("vue-language-picker");
+    expect(await picker.evaluate((el) => el.tagName)).toBe("SELECT");
+    const radius = (loc: typeof picker) => loc.evaluate((el) => getComputedStyle(el).borderTopLeftRadius);
+    const reference = await radius(shell.languageSelect());
+    expect(reference).not.toBe("0px");
+    expect(await radius(picker)).toBe(reference);
+    const heading = page.getByTestId("vue-heading");
+    const before = await heading.textContent();
+    await picker.selectOption("th");
+    await expect(heading).not.toHaveText(before ?? "");
+  });
 });
