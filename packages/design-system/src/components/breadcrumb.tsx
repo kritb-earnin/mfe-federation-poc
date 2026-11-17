@@ -1,11 +1,12 @@
 import type { ComponentProps } from "react";
 import { cn } from "../lib/utils";
 
+// className and data-* land on the inner <ol>, not the <nav>.
 export function Breadcrumb({ className, ...props }: ComponentProps<"ol">) {
   return (
     <nav aria-label="breadcrumb">
       <ol
-        className={cn("flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground", className)}
+        className={cn("m-0 flex list-none flex-wrap items-center gap-1.5 p-0 text-sm text-muted-foreground", className)}
         {...props}
       />
     </nav>

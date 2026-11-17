@@ -19,6 +19,26 @@ describe("components", () => {
       expect(out).toContain("custom-cls");
     });
   }
+  it("Button and NavLink reset browser-default border and background (no preflight in remotes)", () => {
+    for (const out of [
+      renderToString(h(Button, { variant: "ghost" })),
+      renderToString(h(NavLink, null, "x")),
+    ]) {
+      expect(out).toMatch(/[ "]border-0[ "]/);
+      expect(out).toMatch(/[ "]bg-transparent[ "]/);
+      expect(out).toContain("[font-family:inherit]");
+    }
+    expect(renderToString(h(Button, { variant: "outline" }))).toMatch(/[ "]border[ "].*border-border/);
+  });
+  it("forwards ref to the rendered element (React 19 ref prop)", () => {
+    const ref = () => {};
+    for (const C of [Button, Input, NativeSelect, Checkbox, Card, Badge, Alert, NavLink, DefinitionList] as ComponentType<any>[]) {
+      const el = (C as any)({ ref }) as any;
+      expect(el.props.ref, C.name).toBe(ref);
+    }
+    // Breadcrumb wraps the <ol> in a <nav>; ref lands on the <ol>
+    expect(((Breadcrumb as any)({ ref }) as any).props.children.props.ref).toBe(ref);
+  });
   it("NativeSelect renders a select with children", () => {
     const out = renderToString(h(NativeSelect, null, h("option", { value: "a" }, "A")));
     expect(out.startsWith("<select")).toBe(true);
@@ -28,8 +48,13 @@ describe("components", () => {
     expect(renderToString(h(Checkbox))).toContain('type="checkbox"');
   });
   it("Button variants use tokens", () => {
-    expect(renderToString(h(Button, { variant: "destructive" }))).toContain("bg-destructive");
-    expect(renderToString(h(Button))).toContain("bg-primary");
+    const cls = (v?: "destructive") => renderToString(h(Button, { variant: v }));
+    // exact class token: not hover:bg-x/90
+    const has = (s: string, c: string) => new RegExp(`(^|[ "])${c}[ "]`).test(s);
+    expect(has(cls("destructive"), "bg-destructive")).toBe(true);
+    expect(has(cls("destructive"), "bg-primary")).toBe(false);
+    expect(has(cls(), "bg-primary")).toBe(true);
+    expect(has(cls(), "bg-destructive")).toBe(false);
     expect(renderToString(h(Button))).toContain("<button");
   });
   it("Alert non-default variants have role=alert", () => {

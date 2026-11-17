@@ -14,7 +14,7 @@ const TOKENS = [
   "warning", "warning-foreground", "border", "input", "ring",
 ];
 const LITERAL =
-  /#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?|oklch|oklab|lab|lch|hwb|color)\(|color-mix\([^)]*(#|\b(rgba?|hsla?|oklch|oklab|lab|lch|hwb)\()|:[^;{}]*\b(white|black|red|blue|transparent)\b\s*[;}]/;
+  /#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?|oklch|oklab|lab|lch|hwb|color)\(|color-mix\([^)]*(#|\b(rgba?|hsla?|oklch|oklab|lab|lch|hwb)\()|:[^;{}]*\b(white|black|red|blue)\b\s*[;}]/;
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "");
 const block = (s: string, sel: string) => {
   const i = s.indexOf(sel + " {");
@@ -26,6 +26,7 @@ describe("tokens.css", () => {
   it("colour-literal regex fires on tokens.css", () => {
     expect(t).toMatch(LITERAL);
     expect("a { color: white; }").toMatch(LITERAL);
+    expect("a { color: transparent; }").not.toMatch(LITERAL); // keyword, not a theme colour
     expect("a { x: color-mix(in oklab, #fff 10%, red); }").toMatch(LITERAL);
   });
   for (const sel of [":root", ".dark"]) {
@@ -91,13 +92,20 @@ describe("compiled output", () => {
     expect(out).toContain(".text-foreground");
     expect(out).toMatch(/\.bg-primary\s*{\s*background-color:\s*var\(--primary\)/);
     expect(engineInternals(out)).not.toMatch(LITERAL);
-    expect(out).not.toContain("box-sizing: border-box");
+    expect(out).not.toContain("-webkit-text-size-adjust") // preflight marker; box-border utility is fine;
   });
   it("scans component sources: their classes compile and add no colour literals", async () => {
     const out = await compile("remote.css");
     for (const c of [".bg-primary", ".bg-destructive", ".bg-warning", ".accent-primary", ".border-border", ".text-muted-foreground"])
       expect(out, c).toContain(c);
     expect(engineInternals(out)).not.toMatch(LITERAL);
+  });
+  it("compiled remote.css has the border/background resets and a solid border without preflight", async () => {
+    const out = await compile("remote.css");
+    expect(out).toMatch(/\.border-0\s*{[^}]*border-width:\s*0px/);
+    expect(out).toMatch(/\.bg-transparent\s*{\s*background-color:\s*transparent/);
+    expect(out).toMatch(/\.border-solid\s*{[^}]*border-style:\s*solid/);
+    expect(out).toMatch(/@property --tw-border-style\s*{[^}]*initial-value:\s*solid/);
   });
   it("reset shadow namespaces emit nothing (shadow-2xl, inset-shadow-sm, text-shadow-sm)", async () => {
     const out = await compile("remote.css", FIXTURE);
@@ -108,7 +116,7 @@ describe("compiled output", () => {
     const out = await compile("shell.css", FIXTURE);
     expect(out).toMatch(/oklch\(/);
     expect(out).toMatch(LITERAL);
-    expect(out).toContain("box-sizing: border-box");
+    expect(out).toContain("-webkit-text-size-adjust");
   });
   it("entries do not pick up stray utilities from test files", async () => {
     for (const e of ["remote.css", "shell.css"]) {
