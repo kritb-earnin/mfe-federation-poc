@@ -12,10 +12,10 @@
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@poc/design-system/components",
-    "utils": "@poc/design-system/utils",
-    "ui": "@poc/design-system/components/ui",
-    "lib": "@poc/design-system/lib",
-    "hooks": "@poc/design-system/hooks"
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
   }
 }

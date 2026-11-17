@@ -68,7 +68,7 @@ describe("cn", () => {
 
 const dir = fileURLToPath(new URL("./", import.meta.url));
 const FIXTURE =
-  "shadow-xs shadow-sm shadow-md bg-primary bg-card text-foreground border ring-1 ring-ring rounded-md bg-white text-black shadow-2xl drop-shadow-md";
+  "shadow-xs shadow-sm shadow-md bg-primary bg-card text-foreground border ring-1 ring-ring rounded-md bg-white text-black shadow-2xl drop-shadow-md inset-shadow-sm text-shadow-sm";
 // Tailwind's own `@property` initial values and its old-browser `@supports` fallback hold `#0000`
 // (transparent zero shadows) and `#fff` (ring-offset-color, unused at 0 offset). They are engine
 // internals, not theme colours, so they are excluded from the literal check.
@@ -93,6 +93,17 @@ describe("compiled output", () => {
     expect(engineInternals(out)).not.toMatch(LITERAL);
     expect(out).not.toContain("box-sizing: border-box");
   });
+  it("scans component sources: their classes compile and add no colour literals", async () => {
+    const out = await compile("remote.css");
+    for (const c of [".bg-primary", ".bg-destructive", ".bg-warning", ".accent-primary", ".border-border", ".text-muted-foreground"])
+      expect(out, c).toContain(c);
+    expect(engineInternals(out)).not.toMatch(LITERAL);
+  });
+  it("reset shadow namespaces emit nothing (shadow-2xl, inset-shadow-sm, text-shadow-sm)", async () => {
+    const out = await compile("remote.css", FIXTURE);
+    for (const c of [".shadow-2xl", ".inset-shadow-sm", ".text-shadow-sm", ".bg-white", ".text-black"])
+      expect(out, c).not.toContain(c);
+  });
   it("shell.css emits token values and preflight (proves the checks fire)", async () => {
     const out = await compile("shell.css", FIXTURE);
     expect(out).toMatch(/oklch\(/);
@@ -102,7 +113,8 @@ describe("compiled output", () => {
   it("entries do not pick up stray utilities from test files", async () => {
     for (const e of ["remote.css", "shell.css"]) {
       const out = await compile(e);
-      for (const c of [".block", ".border", ".ring", ".p-2", ".p-4"])
+      // Only classes that exist solely in tokens.test.ts; real components legitimately use .border etc.
+      for (const c of [".p-2", ".p-4"])
         expect(out, `${e} ${c}`).not.toMatch(new RegExp(`${c.replace(".", "\\.")}\\s*{`));
     }
   });
