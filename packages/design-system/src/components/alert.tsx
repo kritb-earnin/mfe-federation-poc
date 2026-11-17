@@ -1,17 +1,9 @@
 import type { ComponentProps } from "react";
-import { cva, type VariantProps } from "class-variance-authority";
+import { type VariantProps } from "class-variance-authority";
 import { cn } from "../lib/utils";
+import { alertVariants } from "../variants";
 
-export const alertVariants = cva("relative box-border w-full rounded-lg border border-solid px-4 py-3 text-sm", {
-  variants: {
-    variant: {
-      default: "border-border bg-card text-card-foreground",
-      warning: "border-warning bg-warning/15 text-foreground",
-      destructive: "border-destructive bg-destructive/10 text-destructive",
-    },
-  },
-  defaultVariants: { variant: "default" },
-});
+export { alertVariants };
 
 export function Alert({
   className,

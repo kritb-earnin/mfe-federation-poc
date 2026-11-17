@@ -1,26 +1,19 @@
 import type { ComponentProps } from "react";
 import { cn } from "../lib/utils";
+import { cardClass, cardContentClass, cardHeaderClass, cardTitleClass } from "../variants";
 
 export function Card({ className, ...props }: ComponentProps<"div">) {
-  return (
-    <div
-      className={cn(
-        "box-border flex flex-col gap-4 rounded-xl border border-solid border-border bg-card py-5 text-card-foreground shadow-sm",
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <div className={cn(cardClass, className)} {...props} />;
 }
 
 export function CardHeader({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cn("flex flex-col gap-1.5 px-5", className)} {...props} />;
+  return <div className={cn(cardHeaderClass, className)} {...props} />;
 }
 
 export function CardTitle({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cn("m-0 leading-none font-semibold", className)} {...props} />;
+  return <div className={cn(cardTitleClass, className)} {...props} />;
 }
 
 export function CardContent({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cn("px-5", className)} {...props} />;
+  return <div className={cn(cardContentClass, className)} {...props} />;
 }

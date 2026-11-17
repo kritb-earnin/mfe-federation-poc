@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./utils": "./src/lib/utils.ts",
+    "./variants": "./src/variants.ts",
     "./theme.css": "./src/theme.css",
     "./tokens.css": "./src/tokens.css",
     "./shell.css": "./src/shell.css",
