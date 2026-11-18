@@ -96,7 +96,7 @@ export function RemoteHost({
   }, [mounted, id, capabilities.forceCleanupFail, runtime, registry]);
 
   return (
-    <Card aria-label={title} data-testid={`remote-host-${id}`} role="region" className="min-w-0">
+    <Card aria-label={title} data-remote={id} data-testid={`remote-host-${id}`} role="region" className="min-w-0 border-t-4 border-t-primary">
       <CardHeader className="flex-row items-center justify-between gap-2">
         <h3 className="m-0 text-sm font-semibold">{title}</h3>
         <Badge variant={status === "error" ? "destructive" : status === "mounted" ? "secondary" : "outline"} data-testid={`remote-status-${id}`}>
