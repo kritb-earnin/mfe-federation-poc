@@ -325,6 +325,19 @@ importers:
         specifier: ^3.0.0
         version: 3.3.14(typescript@5.9.3)
 
+  packages/event-broker:
+    dependencies:
+      '@poc/platform-contracts':
+        specifier: workspace:*
+        version: link:../platform-contracts
+    devDependencies:
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 5.1.0
+        version: 5.1.0(@types/node@22.20.5)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass-embedded@1.108.2)(sass@1.108.2)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/platform-contracts:
     devDependencies:
       typescript:
