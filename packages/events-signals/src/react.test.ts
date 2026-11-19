@@ -69,6 +69,26 @@ describe("useTopic", () => {
     r.unmount();
   });
 
+  it("tolerates a facade revoked after the hook subscribed", () => {
+    let revoked = false;
+    const ls = new Set<() => void>();
+    const revoke = () => {
+      throw Object.assign(new Error("r"), { name: "EventsCommandError", code: "FACADE_REVOKED" });
+    };
+    const api = {
+      state: () => ({
+        get: () => (revoked ? revoke() : "v"),
+        subscribe: (cb: () => void) => (revoked ? revoke() : (ls.add(cb), () => ls.delete(cb))),
+      }),
+    } as unknown as EventsApi;
+    const r = render(api);
+    expect(r.el.textContent).toBe("v");
+    revoked = true;
+    expect(() => act(() => ls.forEach((l) => l()))).not.toThrow();
+    expect(r.el.textContent).toBe("undefined");
+    r.unmount();
+  });
+
   it("rethrows other errors", () => {
     expect(() => render(throwing("INVALID_TOPIC"))).toThrow("INVALID_TOPIC");
   });

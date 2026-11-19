@@ -103,6 +103,7 @@ export const mount: RemoteMount = (element, capabilities): MountHandle => {
       queryClient.clear();
       localFeature = { draftNote: "" };
       lastPing = null;
+      render(); // the old account's ping must not stay visible during the transition
     },
     async resume(): Promise<void> {
       blocked = null;

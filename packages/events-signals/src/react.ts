@@ -9,6 +9,16 @@ function isRevoked(error: unknown): boolean {
   return e?.name === "EventsCommandError" && e.code === "FACADE_REVOKED";
 }
 
+// The facade can be revoked after memoizing; treat that as "no state" instead of throwing during render.
+function safe<R>(fn: () => R, fallback: R): R {
+  try {
+    return fn();
+  } catch (error) {
+    if (isRevoked(error)) return fallback;
+    throw error;
+  }
+}
+
 export function useTopic<T>(events: EventsApi | undefined, topic: string): T | undefined {
   // broker.state() allocates per call, so memoize; a revoked facade means no state
   const state = useMemo<TopicState<T> | undefined>(() => {
@@ -20,8 +30,9 @@ export function useTopic<T>(events: EventsApi | undefined, topic: string): T | u
     }
   }, [events, topic]);
   const subscribe = useCallback(
-    (onChange: () => void) => state?.subscribe(onChange) ?? noopUnsubscribe,
+    (onChange: () => void) => safe(() => state?.subscribe(onChange) ?? noopUnsubscribe, noopUnsubscribe),
     [state],
   );
-  return useSyncExternalStore(subscribe, () => state?.get(), () => state?.get());
+  const get = () => safe(() => state?.get(), undefined);
+  return useSyncExternalStore(subscribe, get, get);
 }

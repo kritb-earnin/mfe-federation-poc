@@ -51,3 +51,35 @@ describe("mirrorShellState", () => {
     expect(reader.state("shell.path").get()).toBe("/summary");
   });
 });
+
+describe("mirrorShellState across a session transition", () => {
+  it("resets shell.user to null and shell.path to its route root", () => {
+    let snap: { status: "authenticated" | "transitioning"; contextRevision: number; subjectId?: string } = {
+      status: "authenticated",
+      contextRevision: 1,
+      subjectId: "acct-1",
+    };
+    const subs = new Set<() => void>();
+    const fake: SessionApi = {
+      ...session,
+      getSnapshot: () => snap as ReturnType<SessionApi["getSnapshot"]>,
+      subscribe: (fn) => (subs.add(fn), () => subs.delete(fn)),
+    };
+    const runtime = createShellRuntime({
+      session: fake,
+      routes: { "/orders": "react", "/summary": "vue" },
+      resolveUser: (subjectId) => ({ subjectId, displayName: subjectId }),
+    });
+    const events = createEventBroker({ session: fake });
+    const reader = events.forRemote("reader");
+    const stop = mirrorShellState(runtime, events);
+    runtime.shellNavigate("/orders/123");
+    expect(reader.state("shell.path").get()).toBe("/orders/123");
+    expect(reader.state("shell.user").get()).not.toBeNull();
+    snap = { status: "transitioning", contextRevision: 2 };
+    subs.forEach((fn) => fn());
+    expect(reader.state("shell.user").get()).toBeNull();
+    expect(reader.state("shell.path").get()).toBe("/orders");
+    stop();
+  });
+});
