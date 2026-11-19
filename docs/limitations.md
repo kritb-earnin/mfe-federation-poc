@@ -38,6 +38,21 @@ A remote that is not blocked can still set a layout after the session reaches `e
 - **Federated CSS.** No fix was needed: a CSS import in the exposed `mount` module is extracted as an expose CSS asset, listed in `mf-manifest.json`, and injected by the shell's MF runtime as a `<link>`. Verified in a browser in dev and statically in production builds (production remotes were not served in a browser). Whether the link is removed on unmount is unverified.
 - **Vue remote standalone.** Opening the Vue remote alone on 5002 throws `RUNTIME-006` (`loadShareSync` for `vue`). Not confirmed as pre-existing; the federated path is unaffected.
 
+## Event channel
+
+Shell D (`EventsApi`, see `docs/superpowers/specs/2026-11-18-event-channel-design.md`).
+
+- **Same realm, not a sandbox.** The broker enforces namespaces and sender identity for well-behaved remotes only; malicious remote code can still reach shared memory and the network.
+- **Reads are open.** Any remote may `on`/`state` any topic, including other remotes' and `shell.*`. The broker is the policy point if that must change.
+- **No delivery guarantee, no persistence, no ordering across topics.** Cross-tab and cross-origin messaging are out of scope.
+- **Silent drop during transitions.** `publish`/`setState` from remotes while the session is `transitioning` are dropped without an error, and queued events are discarded. Remotes cannot tell, so they republish in `resume()`.
+- **Mid-delivery race.** If a transition starts synchronously from inside a handler, the message being delivered can still reach the remaining handlers of that delivery.
+- **Event signals cannot be cleared.** An `eventSignal` holds its latest message; `remote-events` hides messages from before a reset by comparing identity (`contextRevision`/`seq`) rather than clearing the signal.
+- **Signals never cross the contract.** `@preact/signals-core` tracking is a module-level global per bundle copy, so a signal from another bundle would silently not trigger `effect`s. Remotes bind signals to the plain-function contract at their own edge.
+- **`EventsCommandError` across bundles.** Same as `ShellCommandError`: match `error.name === "EventsCommandError"` and `error.code`, never `instanceof`.
+- **JSON-shaped payloads.** Payloads are structured-cloned, frozen and limited to 4 KB. Map, Set and typed arrays are not meaningful across the channel; send plain JSON-shaped data.
+- **E2E health gates.** A default `pnpm test:e2e` (no `--project`) also health-gates the D stack (shell D and remote-events), so all stacks must be running; use `--project` to gate only what you need.
+
 ## SSR / native excluded
 
 Production SSR needs request-scoped session state. Native/WebView and cross-origin iframe messaging need adapters beyond this POC.

@@ -18,6 +18,8 @@ Related: [DI decision](decisions/001-session-di.md) · [limitations](limitations
 | `apps/shell-zustand` | DI **C** host (`:8092`); imports shared store. |
 | `apps/remote-react` | Rsbuild MF remote (`:5001`); TanStack Query + REST orders. |
 | `apps/remote-vue` | Rsbuild MF remote (`:5002`); Apollo Client core + GraphQL summary. |
+| `apps/shell-events` | Shell **D** (`:8093`); event broker + `remote-events`. |
+| `apps/remote-events` | Vanilla TS MF remote (`:5003`); signals-core via `@poc/events-signals`. |
 | `apps/mock-api` | Fictional Express backend (`:4010`); session/REST/GraphQL/`__controls`. |
 
 ### Dependency directions
@@ -560,6 +562,10 @@ flowchart LR
 Shells use 809x because some developer machines bind proxies on 8080; if Modern.js falls back from a busy configured port while asset URLs still target the original port, the UI breaks.
 
 Start stack: `pnpm dev:poc` (mock-api + both remotes + shell A).
+
+## Event channel (shell D)
+
+Shell D (`apps/shell-events`, `:8093`) adds a shell-owned event broker (`@poc/event-broker`, shell-internal) and an optional `events?: EventsApi` capability for shell→remote, remote→shell and remote→remote messaging, with a remote-side signals adapter (`@poc/events-signals`) used by the new `remote-events` (`:5003`). Events are cleared and dropped across session transitions. `EventsApi` is separate from `SessionApi` and `ShellApi`. Design and rules: [event channel spec](superpowers/specs/2026-11-18-event-channel-design.md).
 
 ## Same-realm security limitations
 

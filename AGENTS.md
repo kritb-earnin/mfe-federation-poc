@@ -8,6 +8,8 @@
 - **`@poc/platform-contracts`:** types + small validators only. No store instances.
 - **`@poc/session-coordinator`:** shell-internal. Remotes must not import it.
 - **`@poc/shell-state`:** shell-internal (same rule as the coordinator). Remotes must not import it; they only see `ShellApi` from `@poc/platform-contracts`.
+- **`@poc/event-broker`:** shell-internal (same rule as the coordinator). Remotes must not import it; they only see `EventsApi` from `@poc/platform-contracts`.
+- **`@poc/events-signals`:** remote-side adapter (`topicSignal`, `eventSignal`, `useTopic`). Each remote bundles its own `@preact/signals-core`; signals never cross the contract.
 - **`@poc/shared-session-store`:** DI **C** demo only (anti-pattern).
 - **Design system:** the shell owns token values (`tokens.css`) and preflight. Remotes own their Tailwind build and may import `@poc/design-system` / `@poc/design-system-vue` for UI only. See `docs/design-system.md`.
 
@@ -62,6 +64,17 @@ Styling rules for remotes:
 - Vue components are controlled natives: props and events, no `v-model`. Their classes come from `@poc/design-system/variants`.
 - Do not import `@poc/design-system/tokens.css` or `shell.css` from `mount`; only the standalone entry may use `standalone.css`.
 
+Event channel rules for remotes (shell D; spec `docs/superpowers/specs/2026-11-18-event-channel-design.md`):
+
+- Resolve `capabilities.events` optionally; the remote must work without it.
+- Publish and `setState` only on your own id namespace (`events.*` for remote `events`); `shell.*` is shell-only. Reads (`on`, `state`) are open. The broker sets `from`, never the payload.
+- Never call events commands in `dispose`/`block` (the facade may already be revoked); unsubscribe via the functions returned by `on`/`state().subscribe`.
+- Catch only `FACADE_REVOKED` from events commands. Match by `error.name === "EventsCommandError"` and `error.code`, **not** `instanceof` (same reason as `ShellCommandError`).
+- Republish retained state in `resume()`: the broker clears non-`shell.*` retained topics when a transition starts.
+- `publish`/`setState` from remotes during a transition are dropped silently (no error). Do not treat a missing delivery as failure.
+- Events never carry credentials or PII; payloads are fictional, at most 4 KB, JSON-shaped, and never rendered as HTML.
+- Do not pass signals through the contract; bind them at the remote's own edge with `@poc/events-signals`.
+
 Do **not** import shell internals, expose raw Zustand stores/`setState`, tokens, or query clients, or log credentials.
 
 ## Commands
@@ -69,7 +82,7 @@ Do **not** import shell internals, expose raw Zustand stores/`setState`, tokens,
 ```bash
 pnpm install
 pnpm dev:poc          # mock-api + remotes + shell-injected (A)
-pnpm dev:a | dev:b | dev:c
+pnpm dev:a | dev:b | dev:c | dev:d   # D = event channel shell (8093) + remote-events (5003)
 pnpm typecheck
 pnpm test:unit
 pnpm build
@@ -78,9 +91,9 @@ pnpm --filter <app> check:css            # after build; shells A/B/C, remote-rea
 pnpm --filter @poc/shell-ui check:styles
 ```
 
-Ports: mock-api `4010`, remote-react `5001`, remote-vue `5002`, shells `8090/8091/8092`.
+Ports: mock-api `4010`, remote-react `5001`, remote-vue `5002`, remote-events `5003`, shells `8090/8091/8092`, shell D `8093`.
 
 ## Testing expectations
 
 - Unit: snapshot identity, subscribe/unsubscribe, single coordinator instance, transition sequencing, competing commands, timeouts, revision rejection.
-- Playwright (shell A full matrix; B/C smoke): deterministic mock-api `__controls`, page objects, health gates before browser tests.
+- Playwright (shell A full matrix; B/C smoke; shell D event scenarios in `d-events.spec.ts`, `--project shell-d`): deterministic mock-api `__controls`, page objects, health gates before browser tests.

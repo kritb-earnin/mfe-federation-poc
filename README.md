@@ -14,15 +14,16 @@ Framework-agnostic session coordination across Module Federation remotes.
 6. Unmount/remount does not leak subscriptions.
 7. A shell-owned `ShellApi` (navigation, language, user, layout, slots) is shared with remotes and fails closed with the session.
 
-Packages: `@poc/platform-contracts` (types), `@poc/session-coordinator` and `@poc/shell-state` (shell-internal; remotes must not import them), `@poc/shell-ui` (shell chrome, `RemoteHost`), `@poc/design-system` (Tailwind v4 theme, tokens, React components) and `@poc/design-system-vue` (Vue ports). The shell owns token values; remotes build their own CSS from the shared mapping. See [Design system](docs/design-system.md).
+Packages: `@poc/platform-contracts` (types), `@poc/session-coordinator`, `@poc/shell-state` and `@poc/event-broker` (shell-internal; remotes must not import them), `@poc/events-signals` (remote-side signals adapter for the event channel), `@poc/shell-ui` (shell chrome, `RemoteHost`), `@poc/design-system` (Tailwind v4 theme, tokens, React components) and `@poc/design-system-vue` (Vue ports). The shell owns token values; remotes build their own CSS from the shared mapping. See [Design system](docs/design-system.md).
 
-Three DI shells:
+Three DI shells plus shell D (event channel):
 
 | Command | Port | Style |
 | --- | --- | --- |
 | `pnpm dev:a` / `pnpm dev:poc` | **8090** | **A** shell-injected (baseline) |
 | `pnpm dev:b` | **8091** | **B** federated `getSessionApi` |
 | `pnpm dev:c` | **8092** | **C** shared Zustand package (anti-pattern) |
+| `pnpm dev:d` | **8093** | **D** event channel (`EventsApi` broker + `remote-events`); see [spec](docs/superpowers/specs/2026-11-18-event-channel-design.md) |
 
 Ports `8080–8082` are avoided because some developer machines bind local proxies (e.g. gvproxy) on `8080`, which breaks Modern.js asset URLs when the framework falls back to another port.
 
@@ -35,7 +36,7 @@ pnpm dev:poc
 
 Requires Node >= 22.18 and pnpm 10.
 
-Other ports: mock-api `4010`, remote-react `5001`, remote-vue `5002`.
+Other ports: mock-api `4010`, remote-react `5001`, remote-vue `5002`, remote-events `5003` (shell D only).
 
 ## Commands
 
@@ -43,7 +44,9 @@ Other ports: mock-api `4010`, remote-react `5001`, remote-vue `5002`.
 pnpm typecheck
 pnpm test:unit
 pnpm build
-SHELL_A_URL=http://localhost:8090 pnpm test:e2e
+SHELL_A_URL=http://localhost:8090 pnpm test:e2e      # all projects; health-gates A and D stacks
+pnpm test:e2e --project shell-a                      # shell A only
+pnpm test:e2e --project shell-d                      # shell D only (SHELL_D_URL=http://localhost:8093)
 pnpm --filter <app> check:css              # after pnpm build: shell-injected, shell-federated, shell-zustand, remote-react, remote-vue
 pnpm --filter @poc/shell-ui check:styles   # no inline styles in shell-ui
 ```
