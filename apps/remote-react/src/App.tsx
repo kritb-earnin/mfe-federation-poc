@@ -1,7 +1,9 @@
-import React, { type Dispatch, type SetStateAction } from "react";
-import type { RemoteBlockReason, SessionApi, ShellApi } from "@poc/platform-contracts";
+import React, { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
+import type { EventsApi, RemoteBlockReason, SessionApi, ShellApi } from "@poc/platform-contracts";
 import { Alert, Badge, Button, Card, CardContent, cn } from "@poc/design-system";
 import { inputClass } from "@poc/design-system/variants";
+import { useTopic } from "@poc/events-signals/react";
+import { tryEvents } from "./eventsAdapter.js";
 import { useSessionSnapshot } from "./sessionAdapter.js";
 import { orderIdFromPath, tryShell, useShellState } from "./shellAdapter.js";
 import { useOrders } from "./query.js";
@@ -15,9 +17,13 @@ type AppProps = {
   blocked: RemoteBlockReason | null;
   localFeature: LocalFeatureState;
   setLocalFeature: Dispatch<SetStateAction<LocalFeatureState>>;
+  events?: EventsApi;
+  /** Latest `events.ping` n; owned by mount so resetIdentityState can clear it. */
+  lastPing?: number | null;
+  setLastPing?: (n: number) => void;
 };
 
-export function App({ session, shell, blocked, localFeature, setLocalFeature }: AppProps) {
+export function App({ session, shell, blocked, localFeature, setLocalFeature, events, lastPing = null, setLastPing }: AppProps) {
   const snapshot = useSessionSnapshot(session);
   const shellState = useShellState(shell);
   const ordersQuery = useOrders(session, snapshot.accountId, snapshot.contextRevision, blocked === null);
@@ -107,6 +113,7 @@ export function App({ session, shell, blocked, localFeature, setLocalFeature }: 
           ))}
         </ul>
       ) : null}
+      {events ? <EventsReceiver events={events} lastPing={lastPing} setLastPing={setLastPing} /> : null}
       <label className="flex flex-col gap-1.5 text-sm font-medium">
         Fictional draft note
         <textarea
@@ -116,6 +123,35 @@ export function App({ session, shell, blocked, localFeature, setLocalFeature }: 
         />
       </label>
     </main>
+  );
+}
+
+/** Rendered only while `events` exists and the remote is not blocked: a revoked facade must not see these hooks. */
+function EventsReceiver({ events, lastPing, setLastPing }: { events: EventsApi; lastPing: number | null; setLastPing?: (n: number) => void }) {
+  const counter = useTopic<number>(events, "events.counter");
+  const onPing = useRef(setLastPing);
+  onPing.current = setLastPing;
+  useEffect(
+    () =>
+      tryEvents(() =>
+        events.on("events.ping", (message) => {
+          const n = (message.payload as { n?: unknown } | null)?.n;
+          if (typeof n !== "number") return;
+          onPing.current?.(n);
+          tryEvents(() => events.publish("react.ack", { n }));
+        }),
+      ),
+    [events],
+  );
+  return (
+    <div className="flex flex-col gap-0.5 text-sm text-muted-foreground">
+      <p className="m-0" data-testid="react-events-counter">
+        Events counter: {counter ?? "—"}
+      </p>
+      <p className="m-0" data-testid="react-events-last-ping">
+        Last ping: {lastPing ?? "—"}
+      </p>
+    </div>
   );
 }
 

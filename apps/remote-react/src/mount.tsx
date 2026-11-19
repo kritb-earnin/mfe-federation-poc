@@ -22,6 +22,7 @@ export const mount: RemoteMount = (element, capabilities): MountHandle => {
   const queryClient = new QueryClient();
   let blocked: RemoteBlockReason | null = null;
   let localFeature: LocalFeatureState = { draftNote: "" };
+  let lastPing: number | null = null;
   let disposed = false;
   const root = createRoot(element);
   const render = () => {
@@ -32,6 +33,12 @@ export const mount: RemoteMount = (element, capabilities): MountHandle => {
             session={session}
             shell={shell}
             blocked={blocked}
+            events={capabilities.events}
+            lastPing={lastPing}
+            setLastPing={(n) => {
+              lastPing = n;
+              render();
+            }}
             localFeature={localFeature}
             setLocalFeature={(update) => {
               localFeature = typeof update === "function" ? update(localFeature) : update;
@@ -95,6 +102,7 @@ export const mount: RemoteMount = (element, capabilities): MountHandle => {
       void queryClient.cancelQueries();
       queryClient.clear();
       localFeature = { draftNote: "" };
+      lastPing = null;
     },
     async resume(): Promise<void> {
       blocked = null;
@@ -105,6 +113,7 @@ export const mount: RemoteMount = (element, capabilities): MountHandle => {
       blocked = reason;
       releaseShell();
       localFeature = { draftNote: "" };
+      lastPing = null;
       void queryClient.cancelQueries();
       queryClient.clear();
       render();

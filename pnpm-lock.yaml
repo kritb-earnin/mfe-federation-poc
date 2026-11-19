@@ -75,6 +75,9 @@ importers:
       '@poc/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@poc/events-signals':
+        specifier: workspace:*
+        version: link:../../packages/events-signals
       '@poc/platform-contracts':
         specifier: workspace:*
         version: link:../../packages/platform-contracts
@@ -154,13 +157,13 @@ importers:
     dependencies:
       '@modern-js/app-tools':
         specifier: 3.11.3
-        version: 3.11.3(@module-federation/runtime-tools@2.9.3)(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(core-js@3.51.0)(encoding@0.1.13)(react-dom@19.3.1(react@19.3.1))(react-server-dom-rspack@0.1.0(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(typescript@5.9.3)(webpack@5.112.2)
+        version: 3.11.3(@module-federation/runtime-tools@2.9.3)(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(core-js@3.51.0)(encoding@0.1.13)(react-dom@19.3.1(react@19.3.1))(react-server-dom-rspack@0.1.0(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(typescript@5.9.3)(webpack@5.112.2(postcss@8.5.33))
       '@modern-js/runtime':
         specifier: 3.11.3
         version: 3.11.3(@module-federation/runtime-tools@2.9.3)(core-js@3.51.0)(react-dom@19.3.1(react@19.3.1))(react-server-dom-rspack@0.1.0(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       '@module-federation/modern-js-v3':
         specifier: 2.9.3
-        version: 2.9.3(@rsbuild/core@2.3.2(@module-federation/runtime-tools@2.9.3)(core-js@3.51.0))(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(react-dom@19.3.1(react@19.3.1))(react-router@7.18.4(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(typescript@5.9.3)(webpack@5.112.2)
+        version: 2.9.3(@rsbuild/core@2.3.2(@module-federation/runtime-tools@2.9.3)(core-js@3.51.0))(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(react-dom@19.3.1(react@19.3.1))(react-router@7.18.4(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(typescript@5.9.3)(webpack@5.112.2(postcss@8.5.33))
       '@poc/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
@@ -203,13 +206,13 @@ importers:
     dependencies:
       '@modern-js/app-tools':
         specifier: 3.11.3
-        version: 3.11.3(@module-federation/runtime-tools@2.9.3)(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(core-js@3.51.0)(encoding@0.1.13)(react-dom@19.3.1(react@19.3.1))(react-server-dom-rspack@0.1.0(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(typescript@5.9.3)(webpack@5.112.2(postcss@8.5.33))
+        version: 3.11.3(@module-federation/runtime-tools@2.9.3)(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(core-js@3.51.0)(encoding@0.1.13)(react-dom@19.3.1(react@19.3.1))(react-server-dom-rspack@0.1.0(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(typescript@5.9.3)(webpack@5.112.2)
       '@modern-js/runtime':
         specifier: 3.11.3
         version: 3.11.3(@module-federation/runtime-tools@2.9.3)(core-js@3.51.0)(react-dom@19.3.1(react@19.3.1))(react-server-dom-rspack@0.1.0(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       '@module-federation/modern-js-v3':
         specifier: 2.9.3
-        version: 2.9.3(@rsbuild/core@2.3.2(@module-federation/runtime-tools@2.9.3)(core-js@3.51.0))(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(react-dom@19.3.1(react@19.3.1))(react-router@7.18.4(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(typescript@5.9.3)(webpack@5.112.2(postcss@8.5.33))
+        version: 2.9.3(@rsbuild/core@2.3.2(@module-federation/runtime-tools@2.9.3)(core-js@3.51.0))(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(react-dom@19.3.1(react@19.3.1))(react-router@7.18.4(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(typescript@5.9.3)(webpack@5.112.2)
       '@poc/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
