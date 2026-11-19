@@ -87,6 +87,24 @@ describe("createEventBroker", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it("delivers a frozen envelope so one handler cannot spoof the sender for the next", () => {
+    const { events, react, broker } = setup();
+    const other = broker.forRemote("other");
+    let seen: EventMessage | undefined;
+    react.on("events.ping", (m) => {
+      try {
+        (m as { from: string }).from = "shell";
+        (m as { payload: unknown }).payload = "tampered";
+      } catch {
+        // frozen envelope throws in strict mode
+      }
+    });
+    other.on("events.ping", (m) => (seen = m));
+    events.publish("events.ping", { n: 1 });
+    expect(seen).toMatchObject({ from: "events", payload: { n: 1 } });
+    expect(Object.isFrozen(seen)).toBe(true);
+  });
+
   it("isolates throwing handlers", () => {
     const { events, react } = setup();
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -264,6 +282,15 @@ describe("createEventBroker transitions", () => {
     expect(react.state("events.counter").get()).toBeUndefined();
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(react.state("shell.lang").get()).toBe("en");
+  });
+
+  it("stops delivering the message in flight once a transition starts", () => {
+    const { set, events, react } = setupT();
+    const second = vi.fn();
+    react.on("events.ping", () => set("transitioning"));
+    react.on("events.ping", second);
+    events.publish("events.ping", 1);
+    expect(second).not.toHaveBeenCalled();
   });
 
   it("silently drops remote and shell publishes and remote setState while transitioning", () => {

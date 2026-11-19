@@ -76,9 +76,13 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
   const deliver = (message: BrokerMessage) => {
     for (const observer of [...observers]) guarded(() => observer(message));
     if (message.kind === "event") {
-      const { kind: _kind, ...plain } = message;
-      for (const sub of [...(handlers.get(message.topic) ?? [])]) {
-        if (!sub.facade?.revoked) guarded(() => sub.fn(plain));
+      const { topic, payload, from, contextRevision, seq } = message;
+      // one frozen envelope per delivery: a handler cannot rewrite from/payload for the next one
+      const envelope: EventMessage = Object.freeze({ topic, payload, from, contextRevision, seq });
+      for (const sub of [...(handlers.get(topic) ?? [])]) {
+        // a transition started by an earlier handler: the rest must not see the old account's event
+        if (transitioning) break;
+        if (!sub.facade?.revoked) guarded(() => sub.fn(envelope));
       }
     } else {
       for (const sub of [...(stateListeners.get(message.topic) ?? [])]) {
