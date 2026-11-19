@@ -43,8 +43,9 @@ test.describe("shell D event channel", () => {
   test("4 remote to remote: react receives ping and acks, counter is retained", async () => {
     await expect(shell.reactLastPing()).toHaveText(/—/);
     await shell.ping();
-    await expect(shell.reactLastPing()).toHaveText("Last ping: 1");
     await expect(shell.eventsLastAck()).toHaveText('{"n":1}');
+    // the notice sent while unmounted must not reach the remounted remote
+    await expect(shell.eventsLastNotice()).toHaveText("—");
     await expect(shell.reactCounter()).toHaveText("Events counter: 1");
     await shell.ping();
     await expect(shell.reactLastPing()).toHaveText("Last ping: 2");
