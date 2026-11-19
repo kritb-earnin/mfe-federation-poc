@@ -2,6 +2,12 @@ import { defineConfig, devices } from "@playwright/test";
 
 const shellA = process.env.SHELL_A_URL ?? "http://localhost:8090";
 const shellD = process.env.SHELL_D_URL ?? "http://localhost:8093";
+// Shell D is opt-in (needs `pnpm dev:d`): only part of the config when SHELL_D_URL is set or selected on argv.
+const wantsD =
+  Boolean(process.env.SHELL_D_URL) ||
+  process.argv.some(
+    (arg, i, all) => arg === "--project=shell-d" || (arg === "shell-d" && (all[i - 1] === "--project" || all[i - 1] === "-p")),
+  );
 
 export default defineConfig({
   testDir: "./specs",
@@ -28,10 +34,14 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
       testMatch: /bc-smoke\.spec\.ts/,
     },
-    {
-      name: "shell-d",
-      use: { ...devices["Desktop Chrome"], baseURL: shellD },
-      testMatch: /d-.*\.spec\.ts/,
-    },
+    ...(wantsD
+      ? [
+          {
+            name: "shell-d",
+            use: { ...devices["Desktop Chrome"], baseURL: shellD },
+            testMatch: /d-.*\.spec\.ts/,
+          },
+        ]
+      : []),
   ],
 });
