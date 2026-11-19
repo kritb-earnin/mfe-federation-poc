@@ -75,14 +75,14 @@ test.describe("shell-injected A: design system", () => {
     await box.click();
     expect(await box.isChecked()).toBe(false);
 
-    // Card look = same border and background as the (already themed) remote host card.
+    // Card look = same border and background as another shell-owned card; remote host cards are tinted per remote.
     const look = (id: string) =>
       page.getByTestId(id).evaluate((el) => {
         const s = getComputedStyle(el);
         return { border: s.borderTopColor, bg: s.backgroundColor };
       });
     const panel = () => look("session-panel");
-    const reference = () => look("remote-host-react");
+    const reference = () => look("scenario-controls");
 
     const light = await panel();
     expect(light).toEqual(await reference());
