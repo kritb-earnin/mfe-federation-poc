@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const shellA = process.env.SHELL_A_URL ?? "http://localhost:8090";
+const shellD = process.env.SHELL_D_URL ?? "http://localhost:8093";
 
 export default defineConfig({
   testDir: "./specs",
@@ -26,6 +27,11 @@ export default defineConfig({
       name: "shell-bc-smoke",
       use: { ...devices["Desktop Chrome"] },
       testMatch: /bc-smoke\.spec\.ts/,
+    },
+    {
+      name: "shell-d",
+      use: { ...devices["Desktop Chrome"], baseURL: shellD },
+      testMatch: /d-.*\.spec\.ts/,
     },
   ],
 });
