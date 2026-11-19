@@ -131,6 +131,7 @@ describe("createEventBroker", () => {
     events.setState("events.counter", 1);
     react.state("events.counter").subscribe(stateChange);
     broker.unregisterRemote("events");
+    expect(stateChange).toHaveBeenCalledTimes(1);
     expect(react.state("events.counter").get()).toBeUndefined();
     react.publish("react.ping", 1);
     expect(handler).not.toHaveBeenCalled();
@@ -183,5 +184,26 @@ describe("createEventBroker", () => {
     const { broker, events } = setup();
     broker.dispose();
     expect(code(() => events.publish("events.a", 1))).toBe("FACADE_REVOKED");
+    expect(code(() => broker.forRemote("x"))).toBe("FACADE_REVOKED");
+    expect(code(() => broker.publishFromShell("shell.a", 1))).toBe("FACADE_REVOKED");
+    expect(code(() => broker.setShellState("shell.a", 1))).toBe("FACADE_REVOKED");
+  });
+
+  it("reserves the shell id", () => {
+    const { broker, react } = setup();
+    broker.setShellState("shell.mode", "x");
+    expect(code(() => broker.forRemote("shell"))).toBe("NOT_OWNER");
+    expect(code(() => broker.unregisterRemote("shell"))).toBe("NOT_OWNER");
+    expect(react.state("shell.mode").get()).toBe("x");
+  });
+
+  it("skips a handler whose facade was revoked earlier in the same delivery", () => {
+    const { broker, events } = setup();
+    const x = broker.forRemote("x");
+    const late = vi.fn();
+    events.on("events.ping", () => broker.unregisterRemote("x"));
+    x.on("events.ping", late);
+    events.publish("events.ping", 1);
+    expect(late).not.toHaveBeenCalled();
   });
 });

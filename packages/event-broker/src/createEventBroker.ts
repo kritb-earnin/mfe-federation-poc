@@ -28,8 +28,10 @@ export interface EventBroker {
   dispose(): void;
 }
 
-type Handler = (message: EventMessage) => void;
 type Facade = { remoteId: string; revoked: boolean; unsubscribers: Set<() => void> };
+/** Subscriptions remember their facade so delivery can skip one revoked mid-drain; shell-side ones have none. */
+type Sub<F> = { fn: F; facade?: Facade };
+type Handler = (message: EventMessage) => void;
 
 const SHELL = "shell";
 
@@ -37,11 +39,20 @@ const SHELL = "shell";
 export function createEventBroker(options: EventBrokerOptions): EventBroker {
   const { session } = options;
 
-  const handlers = new Map<string, Set<Handler>>();
-  const stateListeners = new Map<string, Set<() => void>>();
+  const handlers = new Map<string, Set<Sub<Handler>>>();
+  const stateListeners = new Map<string, Set<Sub<() => void>>>();
   const retained = new Map<string, { value: unknown; json: string | undefined }>();
   const observers = new Set<(m: BrokerMessage) => void>();
   const facades = new Map<string, Facade>();
+
+  let disposed = false;
+  const assertLive = () => {
+    if (disposed) throw new EventsCommandError("FACADE_REVOKED", "Event broker was disposed");
+  };
+  /** "shell" belongs to the shell only; remotes can never hold that id. */
+  const assertRemoteId = (remoteId: string) => {
+    if (remoteId === SHELL) throw new EventsCommandError("NOT_OWNER", `Remote id "${SHELL}" is reserved for the shell`);
+  };
 
   let seq = 0;
   const queue: BrokerMessage[] = [];
@@ -60,9 +71,13 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
     for (const observer of [...observers]) guarded(() => observer(message));
     if (message.kind === "event") {
       const { kind: _kind, ...plain } = message;
-      for (const handler of [...(handlers.get(message.topic) ?? [])]) guarded(() => handler(plain));
+      for (const sub of [...(handlers.get(message.topic) ?? [])]) {
+        if (!sub.facade?.revoked) guarded(() => sub.fn(plain));
+      }
     } else {
-      for (const listener of [...(stateListeners.get(message.topic) ?? [])]) guarded(listener);
+      for (const sub of [...(stateListeners.get(message.topic) ?? [])]) {
+        if (!sub.facade?.revoked) guarded(sub.fn);
+      }
     }
   };
 
@@ -118,6 +133,7 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
   };
 
   const unregisterRemote = (remoteId: string) => {
+    assertRemoteId(remoteId);
     const facade = facades.get(remoteId);
     if (facade) revoke(facade);
     facades.delete(remoteId);
@@ -129,6 +145,7 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
   };
 
   const forRemote = (remoteId: string): EventsApi => {
+    assertLive();
     unregisterRemote(remoteId);
     const facade: Facade = { remoteId, revoked: false, unsubscribers: new Set() };
     facades.set(remoteId, facade);
@@ -151,7 +168,7 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
       on(topic, handler) {
         live();
         assertTopic(topic);
-        return track(add(handlers, topic, handler));
+        return track(add(handlers, topic, { fn: handler, facade }));
       },
       setState(topic, value) {
         live();
@@ -167,7 +184,7 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
           },
           subscribe: (onChange) => {
             live();
-            return track(add(stateListeners, topic, onChange));
+            return track(add(stateListeners, topic, { fn: onChange, facade }));
           },
         };
       },
@@ -177,13 +194,20 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
   return {
     forRemote,
     unregisterRemote,
-    publishFromShell: (topic, payload) => publish(SHELL, topic, payload),
-    setShellState: (topic, value) => setState(SHELL, topic, value),
+    publishFromShell(topic, payload) {
+      assertLive();
+      publish(SHELL, topic, payload);
+    },
+    setShellState(topic, value) {
+      assertLive();
+      setState(SHELL, topic, value);
+    },
     observe(onMessage) {
       observers.add(onMessage);
       return () => observers.delete(onMessage);
     },
     dispose() {
+      disposed = true;
       for (const facade of facades.values()) revoke(facade);
       facades.clear();
       handlers.clear();
