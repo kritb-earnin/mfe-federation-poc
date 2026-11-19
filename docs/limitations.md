@@ -46,12 +46,11 @@ Shell D (`EventsApi`, see `docs/superpowers/specs/2026-11-18-event-channel-desig
 - **Reads are open.** Any remote may `on`/`state` any topic, including other remotes' and `shell.*`. The broker is the policy point if that must change.
 - **No delivery guarantee, no persistence, no ordering across topics.** Cross-tab and cross-origin messaging are out of scope.
 - **Silent drop during transitions.** `publish`/`setState` from remotes while the session is `transitioning` are dropped without an error, and queued events are discarded. Remotes cannot tell, so they republish in `resume()`.
-- **Mid-delivery race.** If a transition starts synchronously from inside a handler, the message being delivered can still reach the remaining handlers of that delivery.
-- **Event signals cannot be cleared.** An `eventSignal` holds its latest message; `remote-events` hides messages from before a reset by comparing identity (`contextRevision`/`seq`) rather than clearing the signal.
+- **Event signals cannot be cleared.** An `eventSignal` holds its latest message; `remote-events` hides messages from before a reset by comparing message object identity rather than clearing the signal.
 - **Signals never cross the contract.** `@preact/signals-core` tracking is a module-level global per bundle copy, so a signal from another bundle would silently not trigger `effect`s. Remotes bind signals to the plain-function contract at their own edge.
 - **`EventsCommandError` across bundles.** Same as `ShellCommandError`: match `error.name === "EventsCommandError"` and `error.code`, never `instanceof`.
-- **JSON-shaped payloads.** Payloads are structured-cloned, frozen and limited to 4 KB. Map, Set and typed arrays are not meaningful across the channel; send plain JSON-shaped data.
-- **E2E health gates.** A default `pnpm test:e2e` (no `--project`) also health-gates the D stack (shell D and remote-events), so all stacks must be running; use `--project` to gate only what you need.
+- **JSON-shaped payloads.** Payloads are structured-cloned, frozen and limited to 4 KB. Only plain objects and arrays are accepted; Map, Set, Date and typed arrays are rejected with `INVALID_PAYLOAD`.
+- **Shell D e2e is opt-in.** A default `pnpm test:e2e` gates and runs only mock-api, remotes and shell A (plus B/C smoke). The `shell-d` project and the D health gates (shell D, remote-events) apply only with `--project shell-d` or when `SHELL_D_URL` is set; start the stack with `pnpm dev:d` first.
 
 ## SSR / native excluded
 

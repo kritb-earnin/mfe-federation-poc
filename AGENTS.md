@@ -43,8 +43,8 @@ Shell layout/slot facts:
 1. Export `mount(element, capabilities): MountHandle` via Module Federation.
 2. Resolve session with `capabilities.session ?? capabilities.resolveSession?.()`.
 3. Implement `RemoteLifecycle`.
-4. Depend on `@poc/platform-contracts`, and optionally the UI-only `@poc/design-system` / `@poc/design-system-vue` (never `@poc/shell-state` or `@poc/session-coordinator`).
-5. Optionally resolve `capabilities.shell` and use `navigate`, `setLanguage`, `setLayout`, `claimSlot` per the rules above.
+4. Depend on `@poc/platform-contracts`, and optionally the UI-only `@poc/design-system` / `@poc/design-system-vue` (never `@poc/shell-state` or `@poc/session-coordinator`), and optionally `@poc/events-signals` (remote-side adapter for `capabilities.events`).
+5. Optionally resolve `capabilities.shell` and use `navigate`, `setLanguage`, `setLayout`, `claimSlot` per the rules above, and optionally `capabilities.events` (see the event channel rules).
 6. Register the remote in the shell MF config and mount it through `@poc/shell-ui` `RemoteHost`.
 7. Adopt the design system: `src/styles.css` importing `@poc/design-system/remote.css`, `tools.postcss` with `@tailwindcss/postcss`, `import "./styles.css"` from the exposed `mount` module, `check:css` script. Steps in `docs/design-system.md`.
 
@@ -69,10 +69,10 @@ Event channel rules for remotes (shell D; spec `docs/superpowers/specs/2026-11-1
 - Resolve `capabilities.events` optionally; the remote must work without it.
 - Publish and `setState` only on your own id namespace (`events.*` for remote `events`); `shell.*` is shell-only. Reads (`on`, `state`) are open. The broker sets `from`, never the payload.
 - Never call events commands in `dispose`/`block` (the facade may already be revoked); unsubscribe via the functions returned by `on`/`state().subscribe`.
-- Catch only `FACADE_REVOKED` from events commands. Match by `error.name === "EventsCommandError"` and `error.code`, **not** `instanceof` (same reason as `ShellCommandError`).
+- Catch only `FACADE_REVOKED` from events commands. `INVALID_TOPIC`, `NOT_OWNER`, `INVALID_PAYLOAD` and `PAYLOAD_TOO_LARGE` are programmer errors: do not catch them. Match by `error.name === "EventsCommandError"` and `error.code`, **not** `instanceof` (same reason as `ShellCommandError`).
 - Republish retained state in `resume()`: the broker clears non-`shell.*` retained topics when a transition starts.
 - `publish`/`setState` from remotes during a transition are dropped silently (no error). Do not treat a missing delivery as failure.
-- Events never carry credentials or PII; payloads are fictional, at most 4 KB, JSON-shaped, and never rendered as HTML.
+- Events never carry credentials or PII; payloads are fictional, at most 4 KB, plain JSON-shaped data only (Map/Set/Date/typed arrays are rejected with `INVALID_PAYLOAD`), and never rendered as HTML.
 - Do not pass signals through the contract; bind them at the remote's own edge with `@poc/events-signals`.
 
 Do **not** import shell internals, expose raw Zustand stores/`setState`, tokens, or query clients, or log credentials.
@@ -86,8 +86,8 @@ pnpm dev:a | dev:b | dev:c | dev:d   # D = event channel shell (8093) + remote-e
 pnpm typecheck
 pnpm test:unit
 pnpm build
-pnpm test:e2e
-pnpm --filter <app> check:css            # after build; shells A/B/C, remote-react, remote-vue
+pnpm test:e2e                            # shell A + B/C smoke; shell D is opt-in: pnpm dev:d, then --project shell-d or SHELL_D_URL
+pnpm --filter <app> check:css            # after build; shells A/B/C/D (shell-events), remote-react, remote-vue, remote-events
 pnpm --filter @poc/shell-ui check:styles
 ```
 

@@ -44,10 +44,10 @@ Other ports: mock-api `4010`, remote-react `5001`, remote-vue `5002`, remote-eve
 pnpm typecheck
 pnpm test:unit
 pnpm build
-SHELL_A_URL=http://localhost:8090 pnpm test:e2e      # all projects; health-gates A and D stacks
+SHELL_A_URL=http://localhost:8090 pnpm test:e2e      # shell A + B/C smoke (shell D is opt-in, see below)
 pnpm test:e2e --project shell-a                      # shell A only
-pnpm test:e2e --project shell-d                      # shell D only (SHELL_D_URL=http://localhost:8093)
-pnpm --filter <app> check:css              # after pnpm build: shell-injected, shell-federated, shell-zustand, remote-react, remote-vue
+pnpm test:e2e --project shell-d                      # shell D only (needs pnpm dev:d; SHELL_D_URL=http://localhost:8093 also enables it in a bare run)
+pnpm --filter <app> check:css              # after pnpm build: shell-injected, shell-federated, shell-zustand, shell-events, remote-react, remote-vue, remote-events
 pnpm --filter @poc/shell-ui check:styles   # no inline styles in shell-ui
 ```
 

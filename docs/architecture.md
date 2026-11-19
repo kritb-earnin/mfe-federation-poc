@@ -10,6 +10,8 @@ Related: [DI decision](decisions/001-session-di.md) · [limitations](limitations
 | --- | --- |
 | `@poc/platform-contracts` | Types + small validators only. No store instances. Remotes depend on this package alone for session/lifecycle. |
 | `@poc/session-coordinator` | Shell-internal Zustand vanilla coordinator + remote registry. Remotes must not import it. |
+| `@poc/event-broker` | Shell-internal event broker for shell D: namespaces, retained state, isolated FIFO delivery. Remotes must not import it. |
+| `@poc/events-signals` | Remote-side adapter binding `EventsApi` to signals-core / React hooks. |
 | `@poc/shared-session-store` | DI **C** only — package-level singleton anti-pattern. |
 | `@poc/shell-ui` | Shared debug UI: session panel, `RemoteHost`, scenario controls, event log. |
 | `@poc/test-support` | Fictional fixtures + `MockApiControls` for deterministic delays/failures. |
