@@ -1,5 +1,6 @@
 import type { SessionApi } from "./session";
 import type { ShellApi } from "./shell";
+import type { EventsApi } from "./events";
 
 export type TransitionContext = {
   fromRevision: number;
@@ -29,6 +30,7 @@ export type MountCapabilities = {
   session?: SessionApi;
   resolveSession?: () => SessionApi;
   shell?: ShellApi;
+  events?: EventsApi;
   forceCleanupFail?: boolean;
   /** Optional diagnostics sink from shell */
   onEvent?: (event: { type: string; detail?: unknown }) => void;
