@@ -53,6 +53,19 @@ describe("freezePayload", () => {
     circular.self = circular;
     expect(code(() => freezePayload(circular))).toBe("INVALID_PAYLOAD");
   });
+  it("accepts plain nested objects and arrays", () => {
+    expect(code(() => freezePayload({ a: [{ b: null }, 1, "x"], c: { d: true } }))).toBeUndefined();
+    expect(code(() => freezePayload(Object.create(null)))).toBeUndefined();
+  });
+  it.each([
+    ["Map", () => new Map([["a", 1]])],
+    ["Set", () => new Set([1])],
+    ["Date", () => new Date()],
+    ["Uint8Array", () => new Uint8Array([1, 2])],
+    ["nested Map", () => ({ a: [{ m: new Map() }] })],
+  ])("rejects non-plain %s with INVALID_PAYLOAD", (_n, make) => {
+    expect(code(() => freezePayload(make()))).toBe("INVALID_PAYLOAD");
+  });
   it("enforces the 4096 byte limit on serialized UTF-8", () => {
     const pad = MAX_PAYLOAD_BYTES - 2; // JSON adds two quotes
     expect(code(() => freezePayload("x".repeat(pad)))).toBeUndefined();

@@ -65,6 +65,17 @@ function deepFreeze<T>(v: T): T {
   return v;
 }
 
+/** Payloads are JSON-shaped: only plain objects and arrays (Map/Set/Date/typed arrays are rejected). */
+function assertPlain(v: unknown, seen = new Set<object>()): void {
+  if (typeof v !== "object" || v === null || seen.has(v)) return;
+  seen.add(v);
+  const proto = Object.getPrototypeOf(v);
+  if (proto !== null && proto !== Object.prototype && proto !== Array.prototype) {
+    throw new EventsCommandError("INVALID_PAYLOAD", "Payload must be plain JSON-shaped data");
+  }
+  for (const child of Object.values(v)) assertPlain(child, seen);
+}
+
 /** Structured clone + deep freeze, capped at MAX_PAYLOAD_BYTES of JSON UTF-8. */
 export function freezePayload(payload: unknown): unknown {
   let copy: unknown;
@@ -72,8 +83,10 @@ export function freezePayload(payload: unknown): unknown {
   try {
     copy = structuredClone(payload);
     // clone accepts cycles and Map/Set/Date; JSON size is the contract's measure
+    assertPlain(copy);
     json = JSON.stringify(copy);
-  } catch {
+  } catch (error) {
+    if (error instanceof EventsCommandError) throw error;
     throw new EventsCommandError("INVALID_PAYLOAD", "Payload is not cloneable data");
   }
   if (json !== undefined && new TextEncoder().encode(json).length > MAX_PAYLOAD_BYTES) {
