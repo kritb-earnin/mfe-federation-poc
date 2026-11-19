@@ -65,6 +65,17 @@ describe("topicSignal", () => {
   });
 });
 
+describe("topicSignal on a revoked facade", () => {
+  it("throws at creation (fail closed)", () => {
+    const api = {
+      state: () => {
+        throw Object.assign(new Error("revoked"), { name: "EventsCommandError", code: "FACADE_REVOKED" });
+      },
+    } as unknown as EventsApi;
+    expect(() => topicSignal(api, "a.b")).toThrow("revoked");
+  });
+});
+
 describe("eventSignal", () => {
   it("holds the latest message and stops after dispose", () => {
     const f = fakeEvents();

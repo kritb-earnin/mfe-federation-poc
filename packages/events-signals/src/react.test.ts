@@ -42,4 +42,34 @@ describe("useTopic", () => {
     expect(r.el.textContent).toBe("undefined");
     r.unmount();
   });
+
+  it("subscribes once across re-renders even when state() allocates per call", () => {
+    let subs = 0;
+    const api = {
+      state: () => ({ get: () => "v", subscribe: () => (subs++, () => {}) }),
+    } as unknown as EventsApi;
+    const el = document.createElement("div");
+    const root = createRoot(el);
+    const Probe = () => createElement("span", null, String(useTopic<string>(api, "a.b")));
+    for (let i = 0; i < 4; i++) act(() => root.render(createElement(Probe)));
+    expect(subs).toBe(1);
+    act(() => root.unmount());
+  });
+
+  const throwing = (code: string) =>
+    ({
+      state: () => {
+        throw Object.assign(new Error(code), { name: "EventsCommandError", code });
+      },
+    }) as unknown as EventsApi;
+
+  it("returns undefined for a revoked facade without throwing", () => {
+    const r = render(throwing("FACADE_REVOKED"));
+    expect(r.el.textContent).toBe("undefined");
+    r.unmount();
+  });
+
+  it("rethrows other errors", () => {
+    expect(() => render(throwing("INVALID_TOPIC"))).toThrow("INVALID_TOPIC");
+  });
 });
