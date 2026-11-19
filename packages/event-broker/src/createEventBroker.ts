@@ -7,6 +7,7 @@ import {
   type EventMessage,
   type EventsApi,
   type SessionApi,
+  type RemoteLifecycle,
   type TopicState,
 } from "@poc/platform-contracts";
 
@@ -19,6 +20,8 @@ export interface EventBroker {
   forRemote(remoteId: string): EventsApi;
   /** Revoke: drop subscriptions, clear the remote's retained topics */
   unregisterRemote(remoteId: string): void;
+  /** Wraps a remote's lifecycle so block/dispose revoke its facade (a stale wrapper is a no-op for the broker) */
+  registerRemote(remoteId: string, lifecycle: RemoteLifecycle): RemoteLifecycle;
   /** Topic must be shell.* */
   publishFromShell(topic: string, payload: unknown): void;
   /** Retained, shell.* only */
@@ -53,6 +56,9 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
   const assertRemoteId = (remoteId: string) => {
     if (remoteId === SHELL) throw new EventsCommandError("NOT_OWNER", `Remote id "${SHELL}" is reserved for the shell`);
   };
+
+  /** Cached from the session subscription so commands never read the session for it. */
+  let transitioning = session.getSnapshot().status === "transitioning";
 
   let seq = 0;
   const queue: BrokerMessage[] = [];
@@ -109,15 +115,18 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
     };
   };
 
+  /** Fail closed: remote writes and shell events are dropped (not thrown, not observed) mid-transition. */
   const publish = (from: string, topic: string, payload: unknown) => {
     assertTopic(topic);
     assertOwner(from, topic);
+    if (transitioning) return;
     enqueue("event", topic, freezePayload(payload), from);
   };
 
   const setState = (from: string, topic: string, value: unknown) => {
     assertTopic(topic);
     assertOwner(from, topic);
+    if (transitioning && from !== SHELL) return;
     const frozen = freezePayload(value);
     const json = JSON.stringify(frozen);
     // unchanged value keeps identity and does not notify
@@ -132,7 +141,7 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
     facade.unsubscribers.clear();
   };
 
-  const unregisterRemote = (remoteId: string) => {
+  const revokeRemote = (remoteId: string) => {
     assertRemoteId(remoteId);
     const facade = facades.get(remoteId);
     if (facade) revoke(facade);
@@ -144,9 +153,47 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
     }
   };
 
+  const registrations = new Map<string, object>();
+  const unregisterRemote = (remoteId: string) => {
+    registrations.delete(remoteId);
+    revokeRemote(remoteId);
+  };
+
+  const registerRemote = (remoteId: string, lifecycle: RemoteLifecycle): RemoteLifecycle => {
+    assertRemoteId(remoteId);
+    const reg = {};
+    registrations.set(remoteId, reg);
+    /** A stale wrapper (after unregister or re-register) must not touch the current mount. */
+    const current = () => registrations.get(remoteId) === reg;
+    return {
+      prepareTransition: (ctx) => lifecycle.prepareTransition(ctx),
+      resetIdentityState: (ctx) => lifecycle.resetIdentityState(ctx),
+      resume: (ctx) => lifecycle.resume(ctx),
+      block(reason) {
+        if (current() && !disposed) revokeRemote(remoteId);
+        lifecycle.block(reason);
+      },
+      dispose() {
+        if (current() && !disposed) revokeRemote(remoteId);
+        lifecycle.dispose();
+      },
+    };
+  };
+
+  const unsubscribeSession = session.subscribe(() => {
+    transitioning = session.getSnapshot().status === "transitioning";
+    if (!transitioning) return;
+    queue.length = 0;
+    for (const topic of [...retained.keys()]) {
+      if (topicOwner(topic) === SHELL) continue;
+      retained.delete(topic);
+      enqueue("state", topic, undefined, topicOwner(topic));
+    }
+  });
+
   const forRemote = (remoteId: string): EventsApi => {
     assertLive();
-    unregisterRemote(remoteId);
+    revokeRemote(remoteId);
     const facade: Facade = { remoteId, revoked: false, unsubscribers: new Set() };
     facades.set(remoteId, facade);
     const live = () => {
@@ -194,6 +241,7 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
   return {
     forRemote,
     unregisterRemote,
+    registerRemote,
     publishFromShell(topic, payload) {
       assertLive();
       publish(SHELL, topic, payload);
@@ -208,6 +256,8 @@ export function createEventBroker(options: EventBrokerOptions): EventBroker {
     },
     dispose() {
       disposed = true;
+      unsubscribeSession();
+      registrations.clear();
       for (const facade of facades.values()) revoke(facade);
       facades.clear();
       handlers.clear();

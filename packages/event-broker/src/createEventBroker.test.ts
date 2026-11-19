@@ -207,3 +207,180 @@ describe("createEventBroker", () => {
     expect(late).not.toHaveBeenCalled();
   });
 });
+
+function controlledSession(contextRevision = 3) {
+  let snap: { status: "anonymous" | "authenticated" | "transitioning"; contextRevision: number } = {
+    status: "authenticated",
+    contextRevision,
+  };
+  const subs = new Set<() => void>();
+  const session: SessionApi = {
+    ...fakeSession(),
+    getSnapshot: () => snap,
+    subscribe: (fn) => {
+      subs.add(fn);
+      return () => subs.delete(fn);
+    },
+  };
+  return {
+    session,
+    subs,
+    set(status: typeof snap.status, rev = snap.contextRevision) {
+      snap = { status, contextRevision: rev };
+      for (const fn of [...subs]) fn();
+    },
+  };
+}
+const lifecycle = () => ({
+  prepareTransition: vi.fn(async () => {}),
+  resetIdentityState: vi.fn(async () => {}),
+  resume: vi.fn(async () => {}),
+  block: vi.fn(),
+  dispose: vi.fn(),
+});
+
+describe("createEventBroker transitions", () => {
+  const setupT = () => {
+    const ctl = controlledSession();
+    const broker = createEventBroker({ session: ctl.session });
+    return { ...ctl, broker, events: broker.forRemote("events"), react: broker.forRemote("react") };
+  };
+
+  it("clears retained non-shell state once, keeps shell.*, drops queued events", () => {
+    const { set, broker, events, react } = setupT();
+    broker.setShellState("shell.lang", "en");
+    events.setState("events.counter", 1);
+    const onChange = vi.fn();
+    react.state("events.counter").subscribe(onChange);
+    const got: unknown[] = [];
+    react.on("events.ping", (m) => got.push(m));
+    // an event queued behind a draining one is dropped when a transition lands mid-delivery
+    react.on("events.first", () => {
+      events.publish("events.ping", 1);
+      set("transitioning");
+    });
+    events.publish("events.first", 0);
+    expect(got).toEqual([]);
+    expect(react.state("events.counter").get()).toBeUndefined();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(react.state("shell.lang").get()).toBe("en");
+  });
+
+  it("silently drops remote and shell publishes and remote setState while transitioning", () => {
+    const { set, broker, events, react } = setupT();
+    const seen: BrokerMessage[] = [];
+    broker.observe((m) => seen.push(m));
+    const got: unknown[] = [];
+    react.on("events.ping", (m) => got.push(m));
+    react.on("shell.note", (m) => got.push(m));
+    set("transitioning");
+    seen.length = 0;
+    expect(() => events.publish("events.ping", 1)).not.toThrow();
+    expect(() => events.setState("events.counter", 2)).not.toThrow();
+    broker.publishFromShell("shell.note", 1);
+    expect(got).toEqual([]);
+    expect(seen).toEqual([]);
+    expect(react.state("events.counter").get()).toBeUndefined();
+  });
+
+  it("still applies setShellState and allows on()/state() during a transition", () => {
+    const { set, broker, react } = setupT();
+    set("transitioning");
+    const onChange = vi.fn();
+    expect(() => react.on("events.x", () => {})).not.toThrow();
+    react.state("shell.mode").subscribe(onChange);
+    broker.setShellState("shell.mode", "x");
+    expect(react.state("shell.mode").get()).toBe("x");
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("resumes with the new contextRevision after the transition", () => {
+    const { set, events, react } = setupT();
+    const got: EventMessage[] = [];
+    react.on("events.ping", (m) => got.push(m));
+    set("transitioning", 4);
+    set("authenticated", 4);
+    events.publish("events.ping", 1);
+    expect(got[0]!.contextRevision).toBe(4);
+  });
+
+  it("unsubscribes from the session on dispose", () => {
+    const { broker, subs } = setupT();
+    expect(subs.size).toBe(1);
+    broker.dispose();
+    expect(subs.size).toBe(0);
+  });
+
+  it("starts in transitioning if the session already is", () => {
+    const ctl = controlledSession();
+    ctl.set("transitioning");
+    const broker = createEventBroker({ session: ctl.session });
+    const events = broker.forRemote("events");
+    const seen: BrokerMessage[] = [];
+    broker.observe((m) => seen.push(m));
+    events.publish("events.ping", 1);
+    expect(seen).toEqual([]);
+  });
+});
+
+describe("registerRemote", () => {
+  const setupR = () => {
+    const broker = createEventBroker({ session: controlledSession().session });
+    return broker;
+  };
+
+  it("block revokes the facade and calls the inner block", () => {
+    const broker = setupR();
+    const lc = lifecycle();
+    const wrapped = broker.registerRemote("events", lc);
+    const api = broker.forRemote("events");
+    wrapped.block({ type: "timeout", message: "t" });
+    expect(code(() => api.publish("events.x", 1))).toBe("FACADE_REVOKED");
+    expect(lc.block).toHaveBeenCalledTimes(1);
+  });
+
+  it("dispose revokes the facade and calls the inner dispose", () => {
+    const broker = setupR();
+    const lc = lifecycle();
+    const wrapped = broker.registerRemote("events", lc);
+    const api = broker.forRemote("events");
+    wrapped.dispose();
+    expect(code(() => api.publish("events.x", 1))).toBe("FACADE_REVOKED");
+    expect(lc.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("delegates prepareTransition, resetIdentityState and resume", async () => {
+    const broker = setupR();
+    const lc = lifecycle();
+    const wrapped = broker.registerRemote("events", lc);
+    const ctx = { fromRevision: 1, toRevision: 2, signal: new AbortController().signal };
+    await wrapped.prepareTransition(ctx);
+    await wrapped.resetIdentityState(ctx);
+    await wrapped.resume(ctx);
+    expect(lc.prepareTransition).toHaveBeenCalledWith(ctx);
+    expect(lc.resetIdentityState).toHaveBeenCalledWith(ctx);
+    expect(lc.resume).toHaveBeenCalledWith(ctx);
+  });
+
+  it("re-forRemote revokes the old facade and its handlers never fire again", () => {
+    const broker = setupR();
+    const old = broker.forRemote("react");
+    const fn = vi.fn();
+    old.on("events.ping", fn);
+    const events = broker.forRemote("events");
+    broker.forRemote("react");
+    events.publish("events.ping", 1);
+    expect(fn).not.toHaveBeenCalled();
+    expect(code(() => old.publish("react.x", 1))).toBe("FACADE_REVOKED");
+  });
+
+  it("a stale wrapper does not revoke the current facade", () => {
+    const broker = setupR();
+    const stale = broker.registerRemote("events", lifecycle());
+    broker.registerRemote("events", lifecycle());
+    const api = broker.forRemote("events");
+    stale.block({ type: "timeout", message: "t" });
+    stale.dispose();
+    expect(code(() => api.publish("events.x", 1))).toBeUndefined();
+  });
+});
