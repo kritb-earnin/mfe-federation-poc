@@ -30,6 +30,43 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  apps/remote-events:
+    dependencies:
+      '@module-federation/rsbuild-plugin':
+        specifier: 2.9.3
+        version: 2.9.3(@rsbuild/core@2.3.2(@module-federation/runtime-tools@2.9.3)(core-js@3.51.0))(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))(webpack@5.112.2(esbuild@0.28.2))
+      '@poc/design-system':
+        specifier: workspace:*
+        version: link:../../packages/design-system
+      '@poc/events-signals':
+        specifier: workspace:*
+        version: link:../../packages/events-signals
+      '@poc/platform-contracts':
+        specifier: workspace:*
+        version: link:../../packages/platform-contracts
+      '@preact/signals-core':
+        specifier: 1.14.5
+        version: 1.14.5
+      '@rsbuild/core':
+        specifier: ^2.0.0
+        version: 2.3.2(@module-federation/runtime-tools@2.9.3)(core-js@3.51.0)
+      '@tailwindcss/postcss':
+        specifier: 4.3.5
+        version: 4.3.5
+      tailwindcss:
+        specifier: 4.3.5
+        version: 4.3.5
+    devDependencies:
+      jsdom:
+        specifier: 31.0.1
+        version: 31.0.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 5.1.0
+        version: 5.1.0(@types/node@22.20.5)(jsdom@31.0.1)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1)(sass-embedded@1.108.2)(sass@1.108.2)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   apps/remote-react:
     dependencies:
       '@module-federation/rsbuild-plugin':
@@ -5758,6 +5795,30 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
+  '@module-federation/enhanced@2.9.3(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))(webpack@5.112.2(esbuild@0.28.2))':
+    dependencies:
+      '@module-federation/bridge-react-webpack-plugin': 2.9.3
+      '@module-federation/cli': 2.9.3(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))
+      '@module-federation/dts-plugin': 2.9.3(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))
+      '@module-federation/error-codes': 2.9.3
+      '@module-federation/inject-external-runtime-core-plugin': 2.9.3(@module-federation/runtime-tools@2.9.3)
+      '@module-federation/managers': 2.9.3
+      '@module-federation/manifest': 2.9.3(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))
+      '@module-federation/rspack': 2.9.3(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))
+      '@module-federation/runtime-tools': 2.9.3
+      '@module-federation/sdk': 2.9.3
+      '@module-federation/webpack-bundler-runtime': 2.9.3
+      schema-utils: 4.5.0
+      tapable: 2.3.0
+    optionalDependencies:
+      typescript: 5.9.3
+      vue-tsc: 3.3.14(typescript@5.9.3)
+      webpack: 5.112.2(esbuild@0.28.2)
+    transitivePeerDependencies:
+      - '@rspack/core'
+      - bufferutil
+      - utf-8-validate
+
   '@module-federation/enhanced@2.9.3(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))(webpack@5.112.2)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.9.3
@@ -5895,6 +5956,23 @@ snapshots:
       - utf-8-validate
       - webpack
 
+  '@module-federation/node@2.7.53(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))(webpack@5.112.2(esbuild@0.28.2))':
+    dependencies:
+      '@module-federation/enhanced': 2.9.3(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))(webpack@5.112.2(esbuild@0.28.2))
+      '@module-federation/runtime': 2.9.3
+      '@module-federation/sdk': 2.9.3
+      encoding: 0.1.13
+      node-fetch: 2.7.0(encoding@0.1.13)
+      tapable: 2.3.0
+    optionalDependencies:
+      webpack: 5.112.2(esbuild@0.28.2)
+    transitivePeerDependencies:
+      - '@rspack/core'
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - vue-tsc
+
   '@module-federation/node@2.7.53(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))(webpack@5.112.2)':
     dependencies:
       '@module-federation/enhanced': 2.9.3(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))(webpack@5.112.2)
@@ -5945,6 +6023,21 @@ snapshots:
       - typescript
       - utf-8-validate
       - vue-tsc
+
+  '@module-federation/rsbuild-plugin@2.9.3(@rsbuild/core@2.3.2(@module-federation/runtime-tools@2.9.3)(core-js@3.51.0))(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))(webpack@5.112.2(esbuild@0.28.2))':
+    dependencies:
+      '@module-federation/enhanced': 2.9.3(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))(webpack@5.112.2(esbuild@0.28.2))
+      '@module-federation/node': 2.7.53(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))(webpack@5.112.2(esbuild@0.28.2))
+      '@module-federation/sdk': 2.9.3
+    optionalDependencies:
+      '@rsbuild/core': 2.3.2(@module-federation/runtime-tools@2.9.3)(core-js@3.51.0)
+    transitivePeerDependencies:
+      - '@rspack/core'
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - vue-tsc
+      - webpack
 
   '@module-federation/rsbuild-plugin@2.9.3(@rsbuild/core@2.3.2(@module-federation/runtime-tools@2.9.3)(core-js@3.51.0))(@rspack/core@2.3.2(@module-federation/runtime-tools@2.9.3)(@swc/helpers@0.5.24))(typescript@5.9.3)(vue-tsc@3.3.14(typescript@5.9.3))(webpack@5.112.2)':
     dependencies:
@@ -8227,6 +8320,16 @@ snapshots:
     dependencies:
       brace-expansion: 2.1.8
 
+  minimizer-webpack-plugin@5.14.0(esbuild@0.28.2)(webpack@5.112.2(esbuild@0.28.2)):
+    dependencies:
+      jest-worker: 27.5.1
+      schema-utils: 4.8.3(webpack@5.112.2(esbuild@0.28.2))
+      terser: 5.51.2
+      webpack: 5.112.2(esbuild@0.28.2)
+    optionalDependencies:
+      esbuild: 0.28.2
+    optional: true
+
   minimizer-webpack-plugin@5.14.0(postcss@8.5.33)(webpack@5.112.2(postcss@8.5.33)):
     dependencies:
       jest-worker: 27.5.1
@@ -9085,6 +9188,16 @@ snapshots:
       ajv-formats: 3.0.1(ajv@8.20.0)
       ajv-keywords: 5.1.0(ajv@8.20.0)
 
+  schema-utils@4.8.3(webpack@5.112.2(esbuild@0.28.2)):
+    dependencies:
+      '@types/json-schema': 7.0.15
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
+      ajv-keywords: 5.1.0(ajv@8.20.0)
+    optionalDependencies:
+      webpack: 5.112.2(esbuild@0.28.2)
+    optional: true
+
   schema-utils@4.8.3(webpack@5.112.2(postcss@8.5.33)):
     dependencies:
       '@types/json-schema': 7.0.15
@@ -9527,6 +9640,44 @@ snapshots:
       - sharp
       - svgo
       - uglify-js
+
+  webpack@5.112.2(esbuild@0.28.2):
+    dependencies:
+      '@types/estree': 1.0.10
+      '@types/json-schema': 7.0.15
+      '@webassemblyjs/ast': 1.14.1
+      '@webassemblyjs/wasm-edit': 1.14.1
+      '@webassemblyjs/wasm-parser': 1.14.1
+      browserslist: 4.29.5
+      chrome-trace-event: 1.0.4
+      enhanced-resolve: 5.27.0
+      es-module-lexer: 2.3.2
+      events: 3.3.0
+      graceful-fs: 4.2.12
+      mime-db: 1.54.0
+      minimizer-webpack-plugin: 5.14.0(esbuild@0.28.2)(webpack@5.112.2(esbuild@0.28.2))
+      schema-utils: 4.8.3(webpack@5.112.2(esbuild@0.28.2))
+      tapable: 2.3.4
+      watchpack: 2.6.4
+      webpack-sources: 3.7.0
+    transitivePeerDependencies:
+      - '@minify-html/node'
+      - '@napi-rs/image'
+      - '@swc/core'
+      - '@swc/css'
+      - '@swc/html'
+      - clean-css
+      - cssnano
+      - csso
+      - esbuild
+      - html-minifier-terser
+      - imagemin
+      - lightningcss
+      - postcss
+      - sharp
+      - svgo
+      - uglify-js
+    optional: true
 
   webpack@5.112.2(postcss@8.5.33):
     dependencies:
