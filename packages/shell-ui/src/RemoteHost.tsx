@@ -3,6 +3,7 @@ import { Badge, Card, CardContent, CardHeader } from "@poc/design-system";
 import type { MountHandle, RemoteMount, SessionApi } from "@poc/platform-contracts";
 import type { RemoteRegistry } from "@poc/session-coordinator";
 import type { ShellRuntime } from "@poc/shell-state";
+import type { EventBroker } from "@poc/event-broker";
 import type { RemoteLoader, RemoteSlotId } from "./types";
 
 type Props = {
@@ -19,6 +20,7 @@ type Props = {
     onEvent?: (event: { type: string; detail?: unknown }) => void;
   };
   onError: (message: string) => void;
+  events?: EventBroker;
 };
 
 function pickMount(mod: { default?: RemoteMount; mount?: RemoteMount }): RemoteMount {
@@ -36,6 +38,7 @@ export function RemoteHost({
   loadMount,
   capabilities,
   onError,
+  events,
 }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const handleRef = useRef<MountHandle | null>(null);
@@ -49,6 +52,7 @@ export function RemoteHost({
       if (handle) {
         registry.unregister(id);
         runtime.unregisterRemote(id);
+        events?.unregisterRemote(id);
         handle.unmount();
         handleRef.current = null;
       }
@@ -70,10 +74,11 @@ export function RemoteHost({
         if (cancelled) return;
         const mount = pickMount(mod);
         const shell = runtime.forRemote(id);
-        const handle = mount(el, { ...capabilities, shell });
+        const handle = mount(el, { ...capabilities, shell, events: events?.forRemote(id) });
         handleRef.current = handle;
         // The wrapper, not the raw lifecycle: block/dispose must revoke shell contributions first.
-        registry.register(id, runtime.registerRemote(id, handle.lifecycle));
+        const wrapped = runtime.registerRemote(id, handle.lifecycle);
+        registry.register(id, events ? events.registerRemote(id, wrapped) : wrapped);
         setStatus("mounted");
         capabilities.onEvent?.({ type: "remote.mounted", detail: { id } });
       } catch (error) {
@@ -81,6 +86,7 @@ export function RemoteHost({
         if (cancelled) return;
         // A mount that threw may already have claimed slots or set a layout.
         runtime.unregisterRemote(id);
+        events?.unregisterRemote(id);
         setStatus("error");
         onError(error instanceof Error ? error.message : String(error));
         capabilities.onEvent?.({ type: "remote.mount_failed", detail: { id, error: String(error) } });
@@ -93,7 +99,7 @@ export function RemoteHost({
       capabilities.onEvent?.({ type: "remote.unmounted", detail: { id } });
     };
     // runtime and registry are memoized once per ShellApp (and per shell App), so they never remount in the normal flow
-  }, [mounted, id, capabilities.forceCleanupFail, runtime, registry]);
+  }, [mounted, id, capabilities.forceCleanupFail, runtime, registry, events]);
 
   return (
     <Card aria-label={title} data-remote={id} data-testid={`remote-host-${id}`} role="region" className="min-w-0 border-t-4 border-t-primary">
