@@ -1,7 +1,8 @@
 import type { MountHandle, RemoteMount, SessionApi } from "@poc/platform-contracts";
 import type { RemoteRegistry } from "@poc/session-coordinator";
+import type { EventBroker } from "@poc/event-broker";
 
-export type DiMode = "A" | "B" | "C";
+export type DiMode = "A" | "B" | "C" | "D";
 
 export type ShellEvent = {
   id: number;
@@ -10,7 +11,7 @@ export type ShellEvent = {
   detail?: unknown;
 };
 
-export type RemoteSlotId = "react" | "vue";
+export type RemoteSlotId = "react" | "vue" | "events";
 
 export type RemoteLoader = () => Promise<{ default?: RemoteMount; mount?: RemoteMount }>;
 
@@ -32,6 +33,10 @@ export type ShellUiProps = {
   };
   loadReactMount: RemoteLoader;
   loadVueMount: RemoteLoader;
+  /** Optional shell-owned event broker (shell D); remotes only get `events.forRemote(id)` */
+  events?: EventBroker;
+  /** Additional remotes beyond react and vue */
+  extraRemotes?: { id: RemoteSlotId; title: string; route: string; load: RemoteLoader }[];
 };
 
 export type MountedRemote = {

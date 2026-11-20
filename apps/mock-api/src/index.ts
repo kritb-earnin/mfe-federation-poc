@@ -6,7 +6,7 @@ import { restRouter } from "./rest.js";
 import { sessionRouter } from "./session.js";
 
 const app = express();
-const ports = [8080, 8081, 8082, 8090, 8091, 8092, 5001, 5002];
+const ports = [8080, 8081, 8082, 8090, 8091, 8092, 8093, 5001, 5002, 5003];
 const allowedOrigins = new Set([
   ...ports.flatMap((port) => [`http://localhost:${port}`, `http://127.0.0.1:${port}`]),
 ]);

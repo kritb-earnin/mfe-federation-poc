@@ -7,9 +7,10 @@ import { RemoteHost } from "./RemoteHost";
 import { ScenarioControls } from "./ScenarioControls";
 import { EventLog, appendEvent } from "./EventLog";
 import { ShellChrome } from "./ShellChrome";
+import { EventsPanel } from "./EventsPanel";
 import type { ShellEvent, ShellUiProps } from "./types";
 
-const ROUTES = { "/orders": "react", "/summary": "vue" };
+const BASE_ROUTES: Record<string, string> = { "/orders": "react", "/summary": "vue" };
 const resolveUser = (subjectId: string) =>
   FICTIONAL_USERS[subjectId as keyof typeof FICTIONAL_USERS] ?? null;
 
@@ -22,19 +23,26 @@ export function ShellApp({
   resolveRemoteCapabilities,
   loadReactMount,
   loadVueMount,
+  events: eventBroker,
+  extraRemotes,
 }: ShellUiProps) {
   const [events, setEvents] = useState<ShellEvent[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reactMounted, setReactMounted] = useState(true);
   const [vueMounted, setVueMounted] = useState(true);
+  const [extraMounted, setExtraMounted] = useState<Record<string, boolean>>({});
   const [forceCleanupFail, setForceCleanupFail] = useState(false);
 
   // ponytail: runtime created in useMemo and disposed in an effect. Fine without StrictMode (not enabled);
   // under StrictMode the double effect run would dispose the memoized runtime and leave it dead.
   // Upgrade path: create the runtime in a ref/effect (create on mount, dispose on unmount).
+  const routes = useMemo(
+    () => ({ ...BASE_ROUTES, ...Object.fromEntries((extraRemotes ?? []).map((r) => [r.route, r.id])) }),
+    [extraRemotes],
+  );
   const runtime = useMemo(() => {
-    const created = createShellRuntime({ session, routes: ROUTES, resolveUser });
+    const created = createShellRuntime({ session, routes, resolveUser });
     try {
       // deep link: start from a valid path in the hash, ignore anything else
       created.shellNavigate(location.hash.slice(1));
@@ -42,7 +50,7 @@ export function ShellApp({
       // keep the default path
     }
     return created;
-  }, [session]);
+  }, [session, routes]);
   useEffect(() => () => runtime.dispose(), [runtime]);
 
   const pushEvent = useCallback((type: string, detail?: unknown) => {
@@ -110,6 +118,17 @@ export function ShellApp({
           <Button variant="outline" size="sm" data-testid="toggle-vue" onClick={() => setVueMounted((v) => !v)}>
             {vueMounted ? "Unmount" : "Mount"} Vue remote
           </Button>
+          {extraRemotes?.map((r) => (
+            <Button
+              key={r.id}
+              variant="outline"
+              size="sm"
+              data-testid={`toggle-${r.id}`}
+              onClick={() => setExtraMounted((m) => ({ ...m, [r.id]: !(m[r.id] ?? true) }))}
+            >
+              {(extraMounted[r.id] ?? true) ? "Unmount" : "Mount"} {r.title}
+            </Button>
+          ))}
         </section>
 
         <div className="grid gap-6 xl:grid-cols-2">
@@ -122,6 +141,7 @@ export function ShellApp({
             loadMount={loadReactMount}
             capabilities={capabilities}
             onError={setError}
+            events={eventBroker}
           />
           <RemoteHost
             id="vue"
@@ -132,8 +152,25 @@ export function ShellApp({
             loadMount={loadVueMount}
             capabilities={capabilities}
             onError={setError}
+            events={eventBroker}
           />
+          {extraRemotes?.map((r) => (
+            <RemoteHost
+              key={r.id}
+              id={r.id}
+              title={r.title}
+              mounted={extraMounted[r.id] ?? true}
+              registry={registry}
+              runtime={runtime}
+              loadMount={r.load}
+              capabilities={capabilities}
+              onError={setError}
+              events={eventBroker}
+            />
+          ))}
         </div>
+
+        {eventBroker ? <EventsPanel events={eventBroker} runtime={runtime} /> : null}
 
         <ScenarioControls
           forceCleanupFail={forceCleanupFail}

@@ -4,3 +4,4 @@ export * from "./errors";
 export * from "./validate";
 export * from "./domain-hint";
 export * from "./shell";
+export * from "./events";

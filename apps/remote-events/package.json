@@ -1,0 +1,28 @@
+{
+  "name": "@poc/remote-events",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "rsbuild dev",
+    "build": "rsbuild build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "check:css": "node ../../packages/design-system/scripts/check-built-css.mjs dist --remote .proportional-nums"
+  },
+  "dependencies": {
+    "@module-federation/rsbuild-plugin": "2.9.3",
+    "@poc/design-system": "workspace:*",
+    "@poc/events-signals": "workspace:*",
+    "@poc/platform-contracts": "workspace:*",
+    "@preact/signals-core": "1.14.5",
+    "@rsbuild/core": "^2.0.0",
+    "@tailwindcss/postcss": "4.3.5",
+    "tailwindcss": "4.3.5"
+  },
+  "devDependencies": {
+    "jsdom": "31.0.1",
+    "typescript": "5.9.3",
+    "vitest": "5.1.0"
+  }
+}

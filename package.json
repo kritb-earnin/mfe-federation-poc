@@ -4,6 +4,7 @@
   "packageManager": "pnpm@10.33.2",
   "scripts": {
     "dev:poc": "pnpm --parallel --filter @poc/mock-api --filter @poc/remote-react --filter @poc/remote-vue --filter @poc/shell-injected dev",
+    "dev:d": "pnpm --parallel --filter @poc/mock-api --filter @poc/remote-react --filter @poc/remote-vue --filter @poc/remote-events --filter @poc/shell-events dev",
     "dev:a": "pnpm --filter @poc/shell-injected dev",
     "dev:b": "pnpm --filter @poc/shell-federated dev",
     "dev:c": "pnpm --filter @poc/shell-zustand dev",
